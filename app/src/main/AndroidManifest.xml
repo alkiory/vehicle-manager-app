@@ -25,5 +25,14 @@
         <receiver
             android:name=".core.data.notification.MaintenanceNotificationReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".core.data.notification.BootCompletedReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

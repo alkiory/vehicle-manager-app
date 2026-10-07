@@ -11,6 +11,7 @@ data class ReminderPreferences(
     val fuelNotificationsEnabled: Boolean = true,
     val tirePressureNotificationsEnabled: Boolean = false,
     val vibrateOnNotification: Boolean = true,
+    val onboardingCompleted: Boolean = false,
 )
 
 /**

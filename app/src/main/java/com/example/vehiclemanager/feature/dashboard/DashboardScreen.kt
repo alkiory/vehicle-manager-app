@@ -37,11 +37,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.vehiclemanager.R
 import com.example.vehiclemanager.core.domain.FuelRecord
+import com.example.vehiclemanager.core.domain.NextRefuelEstimate
 import com.example.vehiclemanager.core.domain.TimelineEvent
 import com.example.vehiclemanager.core.domain.UpcomingService
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
@@ -49,8 +54,11 @@ import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
 import com.example.vehiclemanager.core.ui.theme.HeroGradientEnd
 import com.example.vehiclemanager.core.ui.theme.HeroGradientStart
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
@@ -63,7 +71,31 @@ fun DashboardScreen(
     var actionsExpanded by remember { mutableStateOf(false) }
 
     VehicleManagerScreen(
-        topBar = { VehicleManagerAppBar(title = "Resumen") },
+        topBar = {
+            VehicleManagerAppBar(
+                titleContent = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.vehiclemanagericon),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Vehicle Manager",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             DashboardActionHub(
                 expanded = actionsExpanded,
@@ -114,12 +146,13 @@ private fun DashboardContent(
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         state = rememberLazyListState(),
     ) {
         item { GreetingHeader() }
         item { VehicleHeroCard(vehicleName = vehicle.name, odometerKm = vehicle.primaryOdometerKm) }
+        item { NextRefuelEstimateCard(estimate = uiState.nextRefuelEstimate) }
         item {
             QuickSummarySection(
                 latestFuel = uiState.latestFuelRecord,
@@ -567,3 +600,114 @@ private fun TimelineItem(
             }
         }
     }
+
+@Composable
+private fun NextRefuelEstimateCard(
+    estimate: NextRefuelEstimate,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = AppIcons.IconFuelDrop,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Próximo repostaje estimado",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (estimate.estimatedRemainingRangeKm != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    if (estimate.averageConsumptionLPer100Km != null) {
+                        Column {
+                            Text(
+                                text = "Consumo medio",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            )
+                            Text(
+                                text = String.format(Locale.getDefault(), "%.1f L/100 km", estimate.averageConsumptionLPer100Km),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Autonomía restante",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                        )
+                        Text(
+                            text = "${estimate.estimatedRemainingRangeKm} km",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+
+                    if (estimate.estimatedNextRefuelOdometerKm != null) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Próximo repostaje",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            )
+                            Text(
+                                text = "${estimate.estimatedNextRefuelOdometerKm} km",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+
+                if (estimate.estimatedNextRefuelDateMs != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val formattedDate = remember(estimate.estimatedNextRefuelDateMs) {
+                        val instant = Instant.ofEpochMilli(estimate.estimatedNextRefuelDateMs)
+                        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                            .withZone(ZoneId.systemDefault())
+                        formatter.format(instant)
+                    }
+                    Text(
+                        text = "Fecha estimada: $formattedDate",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                    )
+                }
+            } else {
+                Text(
+                    text = "Añade al menos dos repostajes para calcular la estimación.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                )
+            }
+        }
+    }
+}

@@ -2,74 +2,118 @@ package com.example.vehiclemanager.core.ui.theme
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 
-// Azul — primario (combustible, CTA, FAB, selección de navegación)
-private val Blue10 = Color(0xFF0E1C3F)
-private val Blue20 = Color(0xFF13285C)
-private val Blue30 = Color(0xFF1F3A7A)
-private val Blue40 = Color(0xFF315BBD)
-private val Blue80 = Color(0xFFAEC1EA)
-private val Blue90 = Color(0xFFE5EDFF)
-
-// Naranja — secundario (mantenimiento)
-private val Amber10 = Color(0xFF3A1E09)
-private val Amber20 = Color(0xFF5C2F0E)
-private val Amber30 = Color(0xFF8A4B1D)
-private val Amber40 = Color(0xFFE38B48)
-private val Amber80 = Color(0xFFF0B27E)
-private val Amber90 = Color(0xFFFFF0E3)
-
-// Verde — terciario (coste por kilómetro / eficiencia)
-private val Green10 = Color(0xFF0F3D2C)
-private val Green20 = Color(0xFF1C5440)
-private val Green30 = Color(0xFF297A5C)
-private val Green40 = Color(0xFF31936F)
-private val Green80 = Color(0xFFAFDFCD)
-private val Green90 = Color(0xFFE4F6ED)
-
-// Degradado de la tarjeta "hero" del vehículo activo (no forma parte del ColorScheme estándar)
+// Legacy gradient constants kept for compilation compatibility until screen restyling tasks
 val HeroGradientStart = Color(0xFF2B4FA0)
 val HeroGradientEnd = Color(0xFF4675DA)
 
 val VehicleManagerLightColors = lightColorScheme(
-    primary = Blue40,
-    onPrimary = Color.White,
-    primaryContainer = Blue90,
-    onPrimaryContainer = Blue10,
-    secondary = Amber40,
-    onSecondary = Color.White,
-    secondaryContainer = Amber90,
-    onSecondaryContainer = Amber10,
-    tertiary = Green40,
-    onTertiary = Color.White,
-    tertiaryContainer = Green90,
-    onTertiaryContainer = Green10,
-    background = Color(0xFFE6EAF3),
-    onBackground = Color(0xFF191B20),
+    primary = Color(0xFF2F5BEA),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFFE8590C),
+    onSecondary = Color(0xFFFFFFFF),
+    tertiary = Color(0xFF0D9488),
+    onTertiary = Color(0xFFFFFFFF),
+    background = Color(0xFFF3F6FD),
+    onBackground = Color(0xFF0F172A),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF191B20),
+    onSurface = Color(0xFF0F172A),
     surfaceVariant = Color(0xFFEEF1F8),
-    onSurfaceVariant = Color(0xFF44474F),
+    onSurfaceVariant = Color(0xFF5B6784),
+    error = Color(0xFFD6284A),
+    outline = Color(0xFFD5DCEE),
 )
 
 val VehicleManagerDarkColors = darkColorScheme(
-    primary = Blue80,
-    onPrimary = Blue20,
-    primaryContainer = Blue30,
-    onPrimaryContainer = Blue90,
-    secondary = Amber80,
-    onSecondary = Amber20,
-    secondaryContainer = Amber30,
-    onSecondaryContainer = Amber90,
-    tertiary = Green80,
-    onTertiary = Green20,
-    tertiaryContainer = Green30,
-    onTertiaryContainer = Green90,
+    primary = Color(0xFF7AA2FF),
+    onPrimary = Color(0xFF0A1B4D),
+    secondary = Color(0xFFFF7A59),
+    onSecondary = Color(0xFFFFFFFF),
+    tertiary = Color(0xFF2DD4BF),
+    onTertiary = Color(0xFF0A1120),
     background = Color(0xFF0A1120),
-    onBackground = Color(0xFFE2E2E9),
-    surface = Color(0xFF111827),
-    onSurface = Color(0xFFE2E2E9),
+    onBackground = Color(0xFFE6EAF5),
+    surface = Color(0xFF131B2D),
+    onSurface = Color(0xFFE6EAF5),
     surfaceVariant = Color(0xFF1A2437),
-    onSurfaceVariant = Color(0xFFC4C6D0),
+    onSurfaceVariant = Color(0xFF8D99B3),
+    error = Color(0xFFFF5C7A),
+    outline = Color(0xFF2B3652),
 )
+
+@Immutable
+data class AppSemanticColors(
+    val fuel: Color,
+    val maintenance: Color,
+    val cost: Color,
+    val alert: Color,
+)
+
+val LightAppSemanticColors = AppSemanticColors(
+    fuel = Color(0xFF0D9488),
+    maintenance = Color(0xFFE8590C),
+    cost = Color(0xFF16A34A),
+    alert = Color(0xFFD6284A),
+)
+
+val DarkAppSemanticColors = AppSemanticColors(
+    fuel = Color(0xFF2DD4BF),
+    maintenance = Color(0xFFFF7A59),
+    cost = Color(0xFF4ADE80),
+    alert = Color(0xFFFF5C7A),
+)
+
+@Immutable
+data class AppGradients(
+    val vehicleCard: Brush,
+    val maintenanceCard: Brush,
+    val maintenanceCardBorder: Color,
+    val maintenanceChip: Brush,
+    val fuelChip: Brush,
+    val screenBackground: Brush,
+    val barCurrent: Brush,
+    val barPrevious: Brush,
+    val priceTrendFill: Brush,
+)
+
+val LightAppGradients = AppGradients(
+    vehicleCard = Brush.linearGradient(listOf(Color(0xFF4C78F2), Color(0xFF2447C4))),
+    maintenanceCard = Brush.linearGradient(listOf(Color(0xFFFFE3D6), Color(0xFFFFF4EE))),
+    maintenanceCardBorder = Color(0xFFF5B9A1),
+    maintenanceChip = Brush.linearGradient(listOf(Color(0xFFFF8A5C), Color(0xFFE8590C))),
+    fuelChip = Brush.linearGradient(listOf(Color(0xFF2DD4BF), Color(0xFF0D9488))),
+    screenBackground = Brush.verticalGradient(listOf(Color(0xFFF8FAFF), Color(0xFFE9EFFC))),
+    barCurrent = Brush.verticalGradient(listOf(Color(0xFF4C78F2), Color(0xFF2447C4))),
+    barPrevious = SolidColor(Color(0xFF4C78F2).copy(alpha = 0.35f)),
+    priceTrendFill = Brush.verticalGradient(listOf(Color(0xFFD6284A).copy(alpha = 0.45f), Color(0xFFD6284A).copy(alpha = 0.0f))),
+)
+
+val DarkAppGradients = AppGradients(
+    vehicleCard = Brush.linearGradient(listOf(Color(0xFF5B83F0), Color(0xFF2F49B8))),
+    maintenanceCard = Brush.linearGradient(
+        listOf(
+            Color(0xFFFF7A59).copy(alpha = 0.28f),
+            Color(0xFFFF7A59).copy(alpha = 0.06f)
+        )
+    ),
+    maintenanceCardBorder = Color(0xFFFF7A59).copy(alpha = 0.45f),
+    maintenanceChip = Brush.linearGradient(listOf(Color(0xFFFF7A59), Color(0xFFD9573A))),
+    fuelChip = Brush.linearGradient(listOf(Color(0xFF2DD4BF), Color(0xFF0D9488))),
+    screenBackground = Brush.verticalGradient(listOf(Color(0xFF0E1830), Color(0xFF0A1120))),
+    barCurrent = Brush.verticalGradient(listOf(Color(0xFF5B83F0), Color(0xFF2F49B8))),
+    barPrevious = SolidColor(Color(0xFF5B83F0).copy(alpha = 0.35f)),
+    priceTrendFill = Brush.verticalGradient(listOf(Color(0xFFFF5C7A).copy(alpha = 0.45f), Color(0xFFFF5C7A).copy(alpha = 0.0f))),
+)
+
+val LocalAppSemanticColors = staticCompositionLocalOf {
+    DarkAppSemanticColors
+}
+
+val LocalAppGradients = staticCompositionLocalOf {
+    DarkAppGradients
+}

@@ -44,8 +44,8 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         enableEdgeToEdge()
         setContent {
-            val isDarkTheme by themePreferenceRepository.isDarkTheme.collectAsState()
-            VehicleManagerTheme(darkTheme = isDarkTheme) {
+            val themeMode by themePreferenceRepository.themeMode.collectAsState()
+            VehicleManagerTheme(themeMode = themeMode) {
                 VehicleManagerApp()
             }
         }

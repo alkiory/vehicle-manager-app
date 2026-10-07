@@ -19,7 +19,8 @@ import androidx.compose.ui.text.style.TextOverflow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleManagerAppBar(
-    title: String,
+    title: String? = null,
+    titleContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean = false,
     onToggleTheme: (() -> Unit)? = null,
@@ -30,13 +31,17 @@ fun VehicleManagerAppBar(
 ) {
     CenterAlignedTopAppBar(
         title = {
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            if (titleContent != null) {
+                titleContent()
+            } else if (title != null) {
+                Text(
+                    text = title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         },
         modifier = modifier,
         navigationIcon = {

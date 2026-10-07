@@ -46,6 +46,11 @@ interface ReminderPreferencesRepository {
     suspend fun setVibrateOnNotification(enabled: Boolean)
 
     /**
+     * Set onboarding completed flag.
+     */
+    suspend fun setOnboardingCompleted(completed: Boolean)
+
+    /**
      * Update all preferences at once.
      */
     suspend fun updateAll(preferences: ReminderPreferences)

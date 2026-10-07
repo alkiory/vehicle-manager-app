@@ -31,6 +31,7 @@ class ReminderPreferencesDataStore @Inject constructor(
         val FUEL_NOTIFICATIONS_ENABLED = booleanPreferencesKey("fuel_notifications_enabled")
         val TIRE_PRESSURE_NOTIFICATIONS_ENABLED = booleanPreferencesKey("tire_pressure_notifications_enabled")
         val VIBRATE_ON_NOTIFICATION = booleanPreferencesKey("vibrate_on_notification")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     }
 
     val reminderPreferences: Flow<ReminderPreferences> = context.reminderPreferencesDataStore.data.map { preferences ->
@@ -42,6 +43,7 @@ class ReminderPreferencesDataStore @Inject constructor(
             fuelNotificationsEnabled = preferences[PreferencesKeys.FUEL_NOTIFICATIONS_ENABLED] ?: true,
             tirePressureNotificationsEnabled = preferences[PreferencesKeys.TIRE_PRESSURE_NOTIFICATIONS_ENABLED] ?: false,
             vibrateOnNotification = preferences[PreferencesKeys.VIBRATE_ON_NOTIFICATION] ?: true,
+            onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
         )
     }
 
@@ -79,6 +81,12 @@ class ReminderPreferencesDataStore @Inject constructor(
     suspend fun updateVibrateOnNotification(enabled: Boolean) {
         context.reminderPreferencesDataStore.edit { preferences ->
             preferences[PreferencesKeys.VIBRATE_ON_NOTIFICATION] = enabled
+        }
+    }
+
+    suspend fun updateOnboardingCompleted(completed: Boolean) {
+        context.reminderPreferencesDataStore.edit { preferences ->
+            preferences[PreferencesKeys.ONBOARDING_COMPLETED] = completed
         }
     }
 }

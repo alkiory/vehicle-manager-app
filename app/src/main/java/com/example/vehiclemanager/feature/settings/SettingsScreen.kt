@@ -63,7 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material3.Surface
 import com.example.vehiclemanager.R
+import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.feature.vehicles.VehicleBackupViewModel
@@ -118,7 +120,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             // Eyebrow + headline
@@ -135,10 +137,10 @@ fun SettingsScreen(
 
             // Appearance section
             SettingsCard(title = "Apariencia", icon = Icons.Default.Settings) {
-                ThemeToggleRow(
-                    isDarkTheme = uiState.isDarkTheme,
-                    onToggle = viewModel::setDarkTheme,
-                    modifier = Modifier.padding(top = 16.dp),
+                ThemeModeSelector(
+                    currentMode = uiState.themeMode,
+                    onSelectMode = viewModel::setThemeMode,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
             }
 
@@ -484,47 +486,78 @@ private fun TimePickerFieldDeckard(
 }
 
 @Composable
-private fun ThemeToggleRow(
-    isDarkTheme: Boolean,
-    onToggle: (Boolean) -> Unit,
+private fun ThemeModeSelector(
+    currentMode: ThemeMode,
+    onSelectMode: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp),
-            )
-            Column(modifier = Modifier.padding(start = 12.dp)) {
-                Text(
-                    text = "Modo oscuro",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    text = if (isDarkTheme) "Activado" else "Desactivado",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Switch(
-            checked = isDarkTheme,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
-            ),
-            modifier = Modifier.semantics {
-                contentDescription = if (isDarkTheme) "Desactivar modo oscuro" else "Activar modo oscuro"
-            },
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Tema de la aplicación",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 12.dp),
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ThemeOptionChip(
+                label = "Sistema",
+                icon = Icons.Default.Settings,
+                selected = currentMode == ThemeMode.SYSTEM,
+                onClick = { onSelectMode(ThemeMode.SYSTEM) },
+                modifier = Modifier.weight(1f),
+            )
+            ThemeOptionChip(
+                label = "Claro",
+                icon = Icons.Default.LightMode,
+                selected = currentMode == ThemeMode.LIGHT,
+                onClick = { onSelectMode(ThemeMode.LIGHT) },
+                modifier = Modifier.weight(1f),
+            )
+            ThemeOptionChip(
+                label = "Oscuro",
+                icon = Icons.Default.DarkMode,
+                selected = currentMode == ThemeMode.DARK,
+                onClick = { onSelectMode(ThemeMode.DARK) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeOptionChip(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            )
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 package com.example.vehiclemanager.core.domain
 
+import javax.inject.Inject
+
 /** Result of calculating consumption from full-tank fuel records. */
 sealed interface FuelConsumptionResult {
     data class Calculated(
@@ -12,13 +14,16 @@ sealed interface FuelConsumptionResult {
 
 /**
  * Calculates fuel consumption across consecutive full-tank checkpoints.
+ * Uses weighted average consumption across the most recent N intervals (default maxIntervals = 3).
  *
  * Partial refuels between two full tanks are included in the interval total.
- * Records are ordered by timestamp and ID before calculation so callers do not
- * need to pre-sort repository results.
+ * Records are ordered by timestamp and ID before calculation.
  */
-class CalculateFuelConsumptionUseCase {
-    operator fun invoke(records: List<FuelRecord>): FuelConsumptionResult {
+class CalculateFuelConsumptionUseCase @Inject constructor() {
+    operator fun invoke(
+        records: List<FuelRecord>,
+        maxIntervals: Int = 3,
+    ): FuelConsumptionResult {
         val orderedRecords = records.sortedWith(
             compareBy<FuelRecord> { it.timestampMs }.thenBy { it.id },
         )
@@ -27,10 +32,7 @@ class CalculateFuelConsumptionUseCase {
 
         if (fullTankIndexes.size < 2) return FuelConsumptionResult.InsufficientData
 
-        var totalLitersX100 = 0L
-        var totalDistanceKm = 0L
-        var intervalsUsed = 0
-
+        val intervals = mutableListOf<FuelInterval>()
         fullTankIndexes.zipWithNext().forEach { (startIndex, endIndex) ->
             val start = orderedRecords[startIndex]
             val end = orderedRecords[endIndex]
@@ -42,18 +44,34 @@ class CalculateFuelConsumptionUseCase {
                 .sumOf { it.litersX100.toLong() }
             if (intervalLitersX100 <= 0) return@forEach
 
-            totalLitersX100 += intervalLitersX100
-            totalDistanceKm += distanceKm
-            intervalsUsed++
+            intervals.add(
+                FuelInterval(
+                    distanceKm = distanceKm,
+                    litersX100 = intervalLitersX100,
+                ),
+            )
         }
 
-        if (intervalsUsed == 0 || totalDistanceKm <= 0) {
+        if (intervals.isEmpty()) {
+            return FuelConsumptionResult.InsufficientData
+        }
+
+        val recentIntervals = intervals.takeLast(maxIntervals)
+        val totalLitersX100 = recentIntervals.sumOf { it.litersX100 }
+        val totalDistanceKm = recentIntervals.sumOf { it.distanceKm }
+
+        if (totalDistanceKm <= 0) {
             return FuelConsumptionResult.InsufficientData
         }
 
         return FuelConsumptionResult.Calculated(
             litersPer100KmX100 = (totalLitersX100 * 100L) / totalDistanceKm,
-            intervalsUsed = intervalsUsed,
+            intervalsUsed = recentIntervals.size,
         )
     }
+
+    private data class FuelInterval(
+        val distanceKm: Long,
+        val litersX100: Long,
+    )
 }

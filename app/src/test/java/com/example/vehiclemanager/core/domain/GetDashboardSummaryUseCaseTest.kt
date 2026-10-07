@@ -4,7 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class GetDashboardSummaryUseCaseTest {
-    private val useCase = GetDashboardSummaryUseCase()
+    private val useCase = GetDashboardSummaryUseCase(
+        estimateRemainingRange = EstimateRemainingRangeUseCase(CalculateFuelConsumptionUseCase()),
+    )
 
     @Test
     fun summaryAggregatesLatestFuelConsumptionAndUrgentServices() {

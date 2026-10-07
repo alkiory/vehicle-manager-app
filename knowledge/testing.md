@@ -1,5 +1,8 @@
 # Testing
 
-The project requires a complete JDK 21 or newer for editor and Gradle tooling, including `java`, `javac`, and `jlink`. This refers to the Java toolchain; the Android compile SDK remains 35.
+Unit tests run on JVM via `./gradlew testDebugUnitTest`. Instrumented Android tests run via `./gradlew connectedDebugAndroidTest`.
 
-The foundation task is verified with `./gradlew assembleDebug`. Feature tasks should add unit tests for domain and repository logic; UI/navigation tasks should use instrumented tests where specified by `instructions.md`.
+## Test Coverage Requirements
+- **Use Cases:** Test boundary conditions (insufficient data, zero distance, negative values, single refuel).
+- **ViewModels:** Verify StateFlow emissions using standard coroutines test dispatchers (`MainDispatcherRule`).
+- **DAOs & Migrations:** Verify SQLite database table creation, foreign key cascades, and migration step accuracy.

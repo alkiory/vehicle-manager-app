@@ -54,6 +54,24 @@ class CalculateFuelConsumptionUseCaseTest {
     }
 
     @Test
+    fun respectsMaxIntervalsForWeightedAverage() {
+        val result = calculate(
+            records = listOf(
+                record(id = 1, odometerKm = 1_000, litersX100 = 10_000, fullTank = true), // extreme interval
+                record(id = 2, odometerKm = 2_000, litersX100 = 3_000, fullTank = true),
+                record(id = 3, odometerKm = 2_500, litersX100 = 3_000, fullTank = true),
+                record(id = 4, odometerKm = 3_000, litersX100 = 3_000, fullTank = true),
+                record(id = 5, odometerKm = 3_500, litersX100 = 3_000, fullTank = true),
+            ),
+            maxIntervals = 3,
+        )
+
+        // Last 3 intervals: 3000/500 = 6 L/100km each -> 600 in x100 units.
+        assertEquals(600L, (result as FuelConsumptionResult.Calculated).litersPer100KmX100)
+        assertEquals(3, result.intervalsUsed)
+    }
+
+    @Test
     fun returnsInsufficientDataWithoutTwoFullTanks() {
         val result = calculate(
             listOf(record(id = 1, odometerKm = 1_000, litersX100 = 4_000, fullTank = true)),
@@ -63,11 +81,24 @@ class CalculateFuelConsumptionUseCaseTest {
     }
 
     @Test
-    fun ignoresZeroDistanceIntervals() {
+    fun ignoresZeroOrNegativeDistanceIntervals() {
         val result = calculate(
             listOf(
                 record(id = 1, odometerKm = 1_000, litersX100 = 4_000, fullTank = true),
                 record(id = 2, odometerKm = 1_000, litersX100 = 4_000, fullTank = true),
+                record(id = 3, odometerKm = 900, litersX100 = 4_000, fullTank = true),
+            ),
+        )
+
+        assertEquals(FuelConsumptionResult.InsufficientData, result)
+    }
+
+    @Test
+    fun ignoresZeroOrNegativeLitersIntervals() {
+        val result = calculate(
+            listOf(
+                record(id = 1, odometerKm = 1_000, litersX100 = 4_000, fullTank = true),
+                record(id = 2, odometerKm = 1_500, litersX100 = 0, fullTank = true),
             ),
         )
 

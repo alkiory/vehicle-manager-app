@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
+import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -11,7 +12,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -21,11 +21,12 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        themePreferenceRepository.isDarkTheme,
+        themePreferenceRepository.themeMode,
         reminderPreferencesRepository.reminderPreferences,
-    ) { isDarkTheme, reminderPrefs ->
+    ) { themeMode, reminderPrefs ->
         SettingsUiState(
-            isDarkTheme = isDarkTheme,
+            themeMode = themeMode,
+            isDarkTheme = themeMode == ThemeMode.DARK,
             reminderPreferences = reminderPrefs,
         )
     }.stateIn(
@@ -33,6 +34,12 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
         initialValue = SettingsUiState(),
     )
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            themePreferenceRepository.setThemeMode(mode)
+        }
+    }
 
     fun setDarkTheme(enabled: Boolean) {
         viewModelScope.launch {
@@ -79,6 +86,7 @@ class SettingsViewModel @Inject constructor(
 }
 
 data class SettingsUiState(
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val isDarkTheme: Boolean = false,
     val reminderPreferences: ReminderPreferences = ReminderPreferences(),
 )

@@ -1,9 +1,10 @@
 package com.example.vehiclemanager.core.domain
 
 import javax.inject.Inject
-import kotlin.math.abs
 
-class GetDashboardSummaryUseCase @Inject constructor() {
+class GetDashboardSummaryUseCase @Inject constructor(
+    private val estimateRemainingRange: EstimateRemainingRangeUseCase,
+) {
     private val getUpcomingServices = GetUpcomingServicesUseCase()
     private val calculateFuelConsumption = CalculateFuelConsumptionUseCase()
 
@@ -17,6 +18,11 @@ class GetDashboardSummaryUseCase @Inject constructor() {
             compareBy<FuelRecord> { it.timestampMs }.thenBy { it.id },
         )
         val consumption = calculateFuelConsumption(fuelRecords)
+        val nextRefuelEstimate = estimateRemainingRange(
+            activeVehicle = activeVehicle,
+            fuelRecords = fuelRecords,
+            currentDateMs = currentDateMs,
+        )
         val upcomingServices = if (activeVehicle == null) {
             emptyList()
         } else {
@@ -35,6 +41,7 @@ class GetDashboardSummaryUseCase @Inject constructor() {
             averageConsumptionLitersPer100KmX100 =
                 (consumption as? FuelConsumptionResult.Calculated)?.litersPer100KmX100,
             costPerKmEurosX1000 = costPerKmEurosX1000,
+            nextRefuelEstimate = nextRefuelEstimate,
             maintenanceAlerts = upcomingServices.filter { it.status != ServiceStatus.OK },
             upcomingServices = upcomingServices,
         )
@@ -51,8 +58,6 @@ class GetDashboardSummaryUseCase @Inject constructor() {
         if (distanceKm <= 0) return null
         val totalCostCents = fuelRecords.sumOf { it.totalCostCents }
         if (totalCostCents <= 0) return null
-        // Calculate cost per km in euros: (totalCostCents / 100) / distanceKm
-        // Return value in thousandths of euros ( euros * 1000 ) for precision
         return ((totalCostCents / 100L) * 1000L) / distanceKm
     }
 }
@@ -62,6 +67,7 @@ data class DashboardSummary(
     val latestFuelRecord: FuelRecord? = null,
     val averageConsumptionLitersPer100KmX100: Long? = null,
     val costPerKmEurosX1000: Long? = null,
+    val nextRefuelEstimate: NextRefuelEstimate = NextRefuelEstimate(),
     val maintenanceAlerts: List<UpcomingService> = emptyList(),
     val upcomingServices: List<UpcomingService> = emptyList(),
 )
