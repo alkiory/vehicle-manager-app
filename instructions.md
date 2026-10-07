@@ -655,7 +655,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-003 — Dashboard restyle
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Apply the approved design to the Dashboard.
 * **Requirements:**
   1. Active vehicle card: `vehicleCard` gradient, white text, car icon at the right.
@@ -670,7 +670,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-004 — Statistics and Vehicles restyle
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Apply the design to Statistics and Vehicles.
 * **Requirements:**
   1. Statistics: icon chips of each card use the gradient chips (summary, monthly spending, price trend).

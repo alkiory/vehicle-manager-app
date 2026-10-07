@@ -1,5 +1,7 @@
 package com.example.vehiclemanager.feature.dashboard
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,20 +28,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.foundation.Image
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,8 +53,7 @@ import com.example.vehiclemanager.core.domain.UpcomingService
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
-import com.example.vehiclemanager.core.ui.theme.HeroGradientEnd
-import com.example.vehiclemanager.core.ui.theme.HeroGradientStart
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -121,7 +121,12 @@ private fun DashboardContent(
 ) {
     val vehicle = uiState.activeVehicle
     if (vehicle == null) {
-        Box(modifier = modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = modifier
+                .background(AppTheme.gradients.screenBackground)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = AppIcons.IconVehicleBadge,
@@ -145,7 +150,7 @@ private fun DashboardContent(
     }
 
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.background(AppTheme.gradients.screenBackground),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         state = rememberLazyListState(),
@@ -162,7 +167,6 @@ private fun DashboardContent(
                 onViewAll = onViewAll,
             )
         }
-        // Timeline section at the bottom
         if (uiState.timelineEvents.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -226,7 +230,7 @@ private fun VehicleHeroCard(vehicleName: String, odometerKm: Long) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                brush = Brush.linearGradient(listOf(HeroGradientStart, HeroGradientEnd)),
+                brush = AppTheme.gradients.vehicleCard,
                 shape = RoundedCornerShape(20.dp),
             )
             .padding(20.dp),
@@ -244,7 +248,7 @@ private fun VehicleHeroCard(vehicleName: String, odometerKm: Long) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(Color(0xFF7CE0A8), CircleShape),
+                                .background(AppTheme.semanticColors.cost, CircleShape),
                         )
                         Text(
                             text = "  Activo",
@@ -273,6 +277,126 @@ private fun VehicleHeroCard(vehicleName: String, odometerKm: Long) {
                 tint = Color.White,
                 modifier = Modifier.size(40.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun NextRefuelEstimateCard(
+    estimate: NextRefuelEstimate,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, AppTheme.gradients.maintenanceCardBorder),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(AppTheme.gradients.maintenanceCard)
+                .padding(16.dp),
+        ) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = AppIcons.IconFuelDrop,
+                            contentDescription = null,
+                            tint = AppTheme.semanticColors.maintenance,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Próximo repostaje estimado",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (estimate.estimatedRemainingRangeKm != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        if (estimate.averageConsumptionLPer100Km != null) {
+                            Column {
+                                Text(
+                                    text = "Consumo medio",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    text = String.format(Locale.getDefault(), "%.1f L/100 km", estimate.averageConsumptionLPer100Km),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Autonomía restante",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = "${estimate.estimatedRemainingRangeKm} km",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+
+                        if (estimate.estimatedNextRefuelOdometerKm != null) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Próximo repostaje",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    text = "${estimate.estimatedNextRefuelOdometerKm} km",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
+
+                    if (estimate.estimatedNextRefuelDateMs != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val formattedDate = remember(estimate.estimatedNextRefuelDateMs) {
+                            val instant = Instant.ofEpochMilli(estimate.estimatedNextRefuelDateMs)
+                            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                                .withZone(ZoneId.systemDefault())
+                            formatter.format(instant)
+                        }
+                        Text(
+                            text = "Fecha estimada: $formattedDate",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Añade al menos dos repostajes para calcular la estimación.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -307,8 +431,7 @@ private fun QuickSummarySection(
             QuickSummaryCard(
                 modifier = Modifier.weight(1f),
                 icon = AppIcons.IconFuelDrop,
-                accentColor = MaterialTheme.colorScheme.primary,
-                accentContainer = MaterialTheme.colorScheme.primaryContainer,
+                chipBrush = AppTheme.gradients.fuelChip,
                 label = "Combustible",
                 value = when {
                     latestFuel == null -> "Sin registros"
@@ -324,8 +447,7 @@ private fun QuickSummarySection(
             QuickSummaryCard(
                 modifier = Modifier.weight(1f),
                 icon = AppIcons.IconWrench,
-                accentColor = MaterialTheme.colorScheme.secondary,
-                accentContainer = MaterialTheme.colorScheme.secondaryContainer,
+                chipBrush = AppTheme.gradients.maintenanceChip,
                 label = "Mantenimiento",
                 value = if (alerts.isEmpty()) "Al día" else "${alerts.size} alerta(s)",
                 caption = if (alerts.isEmpty()) "Sin alertas próximas" else alerts.first().schedule.serviceTitle,
@@ -335,11 +457,11 @@ private fun QuickSummarySection(
             QuickSummaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 icon = AppIcons.IconTrending,
-                accentColor = MaterialTheme.colorScheme.tertiary,
-                accentContainer = MaterialTheme.colorScheme.tertiaryContainer,
+                chipBrush = AppTheme.gradients.barCurrent,
                 label = "Coste por kilómetro",
                 value = if (costPerKmEurosX1000 != null) "${formatDecimalThousandths(costPerKmEurosX1000)} €/km" else "Sin datos suficientes",
                 caption = if (costPerKmEurosX1000 != null) "Basado en historial de combustible" else null,
+                valueColor = AppTheme.semanticColors.cost,
             )
         }
     }
@@ -348,12 +470,12 @@ private fun QuickSummarySection(
 @Composable
 private fun QuickSummaryCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accentColor: Color,
-    accentContainer: Color,
+    chipBrush: Brush,
     label: String,
     value: String,
     caption: String?,
     modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     Card(
         modifier = modifier,
@@ -364,10 +486,15 @@ private fun QuickSummaryCard(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(accentContainer, RoundedCornerShape(10.dp)),
+                    .background(chipBrush, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
             }
             Text(
                 text = label,
@@ -379,6 +506,7 @@ private fun QuickSummaryCard(
                 text = value,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                color = valueColor,
                 modifier = Modifier.padding(top = 2.dp),
             )
             caption?.let {
@@ -469,7 +597,7 @@ private fun TimelineSection(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (index < events.size - 1) {
-                    Spacer(modifier = Modifier.height(1.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -502,212 +630,105 @@ private fun TimelineItem(
     }
 
     Card(
-            modifier = modifier,
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Vertical connector line indicator
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(40.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Icon and content
-                Column(modifier = Modifier.weight(1f)) {
-                    when (event) {
-                        is TimelineEvent.FuelRecordEvent -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = AppIcons.IconFuelDrop,
-                                    contentDescription = "Repostaje",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = event.record.stationName ?: "Gasolinera",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${event.record.litersX100 / 100f} L · ${formatDecimalHundredths(event.record.totalCostCents)} €",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (event.record.pricePerLiterCents > 0) {
-                                Text(
-                                    text = "${formatDecimalHundredths(event.record.pricePerLiterCents)} ¢/L",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        is TimelineEvent.MaintenanceRecordEvent -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = AppIcons.IconWrench,
-                                    contentDescription = "Servicio",
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = event.record.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${formatDecimalHundredths(event.record.costCents)} €",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$dateStr · $timeStr",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                // Cost badge
-                Text(
-                    text = "${formatDecimalHundredths(when (event) {
-                        is TimelineEvent.FuelRecordEvent -> event.record.totalCostCents
-                        is TimelineEvent.MaintenanceRecordEvent -> event.record.costCents
-                    })} €",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.width(60.dp),
-                )
-            }
-        }
-    }
-
-@Composable
-private fun NextRefuelEstimateCard(
-    estimate: NextRefuelEstimate,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = AppIcons.IconFuelDrop,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Próximo repostaje estimado",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Side bar with gradient
+            val sideBarBrush = when (event) {
+                is TimelineEvent.FuelRecordEvent -> AppTheme.gradients.fuelChip
+                is TimelineEvent.MaintenanceRecordEvent -> AppTheme.gradients.maintenanceChip
             }
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(40.dp)
+                    .background(sideBarBrush, CircleShape),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (estimate.estimatedRemainingRangeKm != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    if (estimate.averageConsumptionLPer100Km != null) {
-                        Column {
-                            Text(
-                                text = "Consumo medio",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+            // Icon and content
+            Column(modifier = Modifier.weight(1f)) {
+                when (event) {
+                    is TimelineEvent.FuelRecordEvent -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = AppIcons.IconFuelDrop,
+                                contentDescription = "Repostaje",
+                                tint = AppTheme.semanticColors.fuel,
+                                modifier = Modifier.size(20.dp),
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = String.format(Locale.getDefault(), "%.1f L/100 km", estimate.averageConsumptionLPer100Km),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                text = event.record.stationName ?: "Gasolinera",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${event.record.litersX100 / 100f} L · ${formatDecimalHundredths(event.record.totalCostCents)} €",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (event.record.pricePerLiterCents > 0) {
+                            Text(
+                                text = "${formatDecimalHundredths(event.record.pricePerLiterCents)} ¢/L",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Autonomía restante",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                        )
-                        Text(
-                            text = "${estimate.estimatedRemainingRangeKm} km",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-
-                    if (estimate.estimatedNextRefuelOdometerKm != null) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Próximo repostaje",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                    is TimelineEvent.MaintenanceRecordEvent -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = AppIcons.IconWrench,
+                                contentDescription = "Servicio",
+                                tint = AppTheme.semanticColors.maintenance,
+                                modifier = Modifier.size(20.dp),
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "${estimate.estimatedNextRefuelOdometerKm} km",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                text = event.record.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
                             )
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${formatDecimalHundredths(event.record.costCents)} €",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
-
-                if (estimate.estimatedNextRefuelDateMs != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val formattedDate = remember(estimate.estimatedNextRefuelDateMs) {
-                        val instant = Instant.ofEpochMilli(estimate.estimatedNextRefuelDateMs)
-                        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-                            .withZone(ZoneId.systemDefault())
-                        formatter.format(instant)
-                    }
-                    Text(
-                        text = "Fecha estimada: $formattedDate",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
-                    )
-                }
-            } else {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Añade al menos dos repostajes para calcular la estimación.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                    text = "$dateStr · $timeStr",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            // Amount in semantic cost color
+            Text(
+                text = "${formatDecimalHundredths(when (event) {
+                    is TimelineEvent.FuelRecordEvent -> event.record.totalCostCents
+                    is TimelineEvent.MaintenanceRecordEvent -> event.record.costCents
+                })} €",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = AppTheme.semanticColors.cost,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(60.dp),
+            )
         }
     }
 }
