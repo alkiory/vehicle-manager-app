@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.vehiclemanager.BuildConfig
 import com.example.vehiclemanager.R
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
@@ -256,7 +257,7 @@ fun SettingsScreen(
             // About section
             SettingsCard(title = "Acerca de", icon = Icons.Default.Info) {
                 Text(
-                    text = "Vehicle Manager v1.0",
+                    text = "Vehicle Manager v${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
