@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
@@ -35,6 +34,7 @@ import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,20 +43,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -147,35 +151,21 @@ fun SettingsScreen(
                 val prefs = uiState.reminderPreferences
 
                 // Advance distance input
-                OutlinedTextField(
-                    value = if (prefs.advanceDistanceKm > 0) "${prefs.advanceDistanceKm}" else "",
-                    onValueChange = { value ->
-                        val km = value.toLongOrNull() ?: 0L
-                        if (km >= 0) viewModel.setAdvanceDistanceKm(km)
-                    },
-                    label = { Text(stringResource(R.string.reminder_advance_distance_label)) },
-                    suffix = { Text(text = stringResource(R.string.reminder_advance_distance_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    singleLine = true,
+                ReminderNumericInputField(
+                    value = prefs.advanceDistanceKm,
+                    onValuePersisted = viewModel::setAdvanceDistanceKm,
+                    label = stringResource(R.string.reminder_advance_distance_label),
+                    suffix = stringResource(R.string.reminder_advance_distance_unit),
+                    modifier = Modifier.padding(top = 12.dp),
                 )
 
                 // Advance days input
-                OutlinedTextField(
-                    value = if (prefs.advanceDays > 0) "${prefs.advanceDays}" else "",
-                    onValueChange = { value ->
-                        val days = value.toIntOrNull() ?: 0
-                        if (days >= 0) viewModel.setAdvanceDays(days)
-                    },
-                    label = { Text(stringResource(R.string.reminder_advance_days_label)) },
-                    suffix = { Text(text = stringResource(R.string.reminder_advance_days_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    singleLine = true,
+                ReminderNumericInputField(
+                    value = prefs.advanceDays.toLong(),
+                    onValuePersisted = { daysLong -> viewModel.setAdvanceDays(daysLong.toInt()) },
+                    label = stringResource(R.string.reminder_advance_days_label),
+                    suffix = stringResource(R.string.reminder_advance_days_unit),
+                    modifier = Modifier.padding(top = 12.dp),
                 )
 
                 // Notification time
@@ -271,6 +261,50 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ReminderNumericInputField(
+    value: Long,
+    onValuePersisted: (Long) -> Unit,
+    label: String,
+    suffix: String,
+    modifier: Modifier = Modifier,
+) {
+    var textState by remember(value) { mutableStateOf(if (value > 0) value.toString() else "") }
+    var isFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!isFocused) {
+            textState = if (value > 0) value.toString() else ""
+        }
+    }
+
+    OutlinedTextField(
+        value = textState,
+        onValueChange = { input ->
+            val digitsOnly = input.filter { it.isDigit() }.take(6)
+            textState = digitsOnly
+            val parsed = digitsOnly.toLongOrNull() ?: 0L
+            onValuePersisted(parsed)
+        },
+        label = { Text(text = label) },
+        suffix = { Text(text = suffix) },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done,
+        ),
+        singleLine = true,
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+                if (!focusState.isFocused) {
+                    val parsed = textState.toLongOrNull() ?: 0L
+                    onValuePersisted(parsed)
+                }
+            },
+    )
 }
 
 @Composable

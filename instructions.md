@@ -714,7 +714,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-007 — Fix reversed digits in reminder numeric inputs (QA bug)
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Make the "Distancia de antelación" and "Días de antelación" inputs behave like normal numeric fields.
 * **QA evidence:** Typing 1, then 2, then 0 shows `201`. After the first digit the caret jumps in front of it, so each new digit is inserted before the previous ones. Same behavior in both inputs.
 * **Requirements:**
@@ -730,7 +730,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-008 — Auto-dismiss save/import feedback (QA bug)
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Success messages must disappear and must not leak across tabs.
 * **QA evidence:** After saving a change or importing a configuration, the "changes saved" / "import completed successfully" notification stays on screen. It should disappear after 3 seconds. It also keeps showing when the user navigates between tabs.
 * **Requirements:**
