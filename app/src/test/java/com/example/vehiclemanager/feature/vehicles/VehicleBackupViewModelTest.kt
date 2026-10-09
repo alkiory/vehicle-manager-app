@@ -14,19 +14,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VehicleBackupViewModelTest {
-    private val mainDispatcher = UnconfinedTestDispatcher()
+    private val testDispatcher = StandardTestDispatcher()
     private val vehiclesFlow = MutableStateFlow<List<Vehicle>>(emptyList())
     private val activeVehicleFlow = MutableStateFlow<Vehicle?>(null)
     private var lastActivatedVehicleId: Long? = null
@@ -35,7 +39,7 @@ class VehicleBackupViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(mainDispatcher)
+        Dispatchers.setMain(testDispatcher)
         viewModel = VehicleBackupViewModel(
             exportDatabase = ExportDatabaseUseCase(NoOpBackupRepository),
             importDatabase = ImportDatabaseUseCase(NoOpBackupRepository),
@@ -53,19 +57,19 @@ class VehicleBackupViewModelTest {
     }
 
     @Test
-    fun vehiclesAreReemittedWhenTheRepositoryEmitsNewValues() = runTest {        val collected = mutableListOf<List<Vehicle>?>(
-        )
-        // Suscribirse en el dispatcher Main (unconfined) para que la suscripción sea inmediata.
-        val job = launch(mainDispatcher) { viewModel.vehicles.collect { collected.add(it) } }
+    fun vehiclesAreReemittedWhenTheRepositoryEmitsNewValues() = runTest {
+        val collected = mutableListOf<List<Vehicle>?>()
+        val job = launch(testDispatcher) { viewModel.vehicles.collect { collected.add(it) } }
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vehiclesFlow.value = listOf(vehicle(id = 1, odometerKm = 10_000))
+        testDispatcher.scheduler.advanceUntilIdle()
+
         vehiclesFlow.value = listOf(vehicle(id = 1, odometerKm = 10_500))
+        testDispatcher.scheduler.advanceUntilIdle()
 
         job.cancel()
 
-        // Secuencia esperada: null (valor inicial de stateIn), la lista vacía inicial del
-        // flujo (replay de MutableStateFlow) y después las dos emisiones con datos,
-        // lo que demuestra que una edición del odómetro llega reactivamente a la UI.
         assertEquals(
             listOf<List<Vehicle>?>(
                 null,
@@ -83,15 +87,18 @@ class VehicleBackupViewModelTest {
         val second = vehicle(id = 2)
         activeVehicleFlow.value = first
 
+        testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(first.id, viewModel.activeVehicleId.first { it != null })
 
         activeVehicleFlow.value = second
+        testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(second.id, viewModel.activeVehicleId.first { it == second.id })
     }
 
     @Test
     fun setActiveVehicleDelegatesToTheRepository() = runTest {
         viewModel.setActiveVehicle(vehicleId = 2)
+        testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(2L, lastActivatedVehicleId)
     }
@@ -99,6 +106,41 @@ class VehicleBackupViewModelTest {
     @Test
     fun activeVehicleIdStartsAsNullBeforeTheFirstEmission() = runTest {
         assertNull(viewModel.activeVehicleId.value)
+    }
+
+    @Test
+    fun importBackup_succeedsAndAutoDismissesAfter3000ms() = runTest {
+        val validJson = """{"schemaVersion":1,"activeVehicleId":null,"vehicles":[],"fuelRecords":[],"maintenanceRecords":[],"maintenanceSchedules":[]}"""
+        viewModel.importBackup(validJson)
+        testDispatcher.scheduler.runCurrent()
+
+        assertTrue(viewModel.uiState.value.importCompleted)
+
+        testDispatcher.scheduler.advanceTimeBy(3_001)
+        testDispatcher.scheduler.runCurrent()
+
+        assertFalse(viewModel.uiState.value.importCompleted)
+    }
+
+    @Test
+    fun importBackup_failureAutoDismissesErrorAfter3000ms() = runTest {
+        val failingRepo = FailingBackupRepository()
+        val failingViewModel = VehicleBackupViewModel(
+            exportDatabase = ExportDatabaseUseCase(failingRepo),
+            importDatabase = ImportDatabaseUseCase(failingRepo),
+            vehicleRepository = FakeVehicleRepository(vehiclesFlow),
+            activeVehicleRepository = FakeActiveVehicleRepository(activeVehicleFlow) { id -> lastActivatedVehicleId = id },
+        )
+
+        failingViewModel.importBackup("invalid")
+        testDispatcher.scheduler.runCurrent()
+
+        assertNotNull(failingViewModel.uiState.value.error)
+
+        testDispatcher.scheduler.advanceTimeBy(3_001)
+        testDispatcher.scheduler.runCurrent()
+
+        assertNull(failingViewModel.uiState.value.error)
     }
 
     private fun vehicle(
@@ -154,5 +196,15 @@ class VehicleBackupViewModelTest {
         )
 
         override suspend fun replaceSnapshot(snapshot: VehicleBackupSnapshot) = Unit
+    }
+
+    private class FailingBackupRepository : VehicleBackupRepository {
+        override suspend fun readSnapshot(): VehicleBackupSnapshot {
+            throw IllegalStateException("Corrupt backup file")
+        }
+
+        override suspend fun replaceSnapshot(snapshot: VehicleBackupSnapshot) {
+            throw IllegalStateException("Corrupt backup file")
+        }
     }
 }

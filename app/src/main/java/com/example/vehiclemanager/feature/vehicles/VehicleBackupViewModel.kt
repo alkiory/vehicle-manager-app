@@ -9,6 +9,8 @@ import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,8 @@ class VehicleBackupViewModel @Inject constructor(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(VehicleBackupUiState())
     val uiState: StateFlow<VehicleBackupUiState> = _uiState.asStateFlow()
+
+    private var messageTimerJob: Job? = null
 
     // `null` hasta la primera emisión de Room: evita mostrar el estado vacío antes de cargar.
     val vehicles: StateFlow<List<Vehicle>?> = vehicleRepository.vehicles
@@ -51,11 +55,15 @@ class VehicleBackupViewModel @Inject constructor(
     }
 
     fun exportBackup() {
+        messageTimerJob?.cancel()
         _uiState.update { it.copy(isBusy = true, error = null) }
         viewModelScope.launch {
             runCatching { exportDatabase() }
                 .onSuccess { json -> _uiState.update { it.copy(isBusy = false, exportJson = json) } }
-                .onFailure { error -> _uiState.update { it.copy(isBusy = false, error = error.message ?: "Backup export failed") } }
+                .onFailure { error ->
+                    _uiState.update { it.copy(isBusy = false, error = error.message ?: "Backup export failed") }
+                    startAutoDismissTimer()
+                }
         }
     }
 
@@ -64,19 +72,36 @@ class VehicleBackupViewModel @Inject constructor(
     }
 
     fun importBackup(json: String) {
-        _uiState.update { it.copy(isBusy = true, error = null) }
+        messageTimerJob?.cancel()
+        _uiState.update { it.copy(isBusy = true, error = null, importCompleted = false) }
         viewModelScope.launch {
             runCatching { importDatabase(json) }
-                .onSuccess { _uiState.update { it.copy(isBusy = false, importCompleted = true) } }
-                .onFailure { error -> _uiState.update { it.copy(isBusy = false, error = error.message ?: "Backup import failed") } }
+                .onSuccess {
+                    _uiState.update { it.copy(isBusy = false, importCompleted = true) }
+                    startAutoDismissTimer()
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(isBusy = false, error = error.message ?: "Backup import failed") }
+                    startAutoDismissTimer()
+                }
+        }
+    }
+
+    private fun startAutoDismissTimer() {
+        messageTimerJob?.cancel()
+        messageTimerJob = viewModelScope.launch {
+            delay(3_000)
+            _uiState.update { it.copy(importCompleted = false, error = null) }
         }
     }
 
     fun consumeImportCompleted() {
+        messageTimerJob?.cancel()
         _uiState.update { it.copy(importCompleted = false) }
     }
 
     fun consumeError() {
+        messageTimerJob?.cancel()
         _uiState.update { it.copy(error = null) }
     }
 }

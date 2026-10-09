@@ -730,7 +730,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-008 — Auto-dismiss save/import feedback (QA bug)
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Success messages must disappear and must not leak across tabs.
 * **QA evidence:** After saving a change or importing a configuration, the "changes saved" / "import completed successfully" notification stays on screen. It should disappear after 3 seconds. It also keeps showing when the user navigates between tabs.
 * **Requirements:**
@@ -746,7 +746,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-009 — App version 0.2.1 (QA bug)
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** The About card must show the real app version.
 * **QA evidence:** After two releases, Settings → "Acerca de" still shows `Vehicle Manager v1.0`. The project is not at v1 yet; the correct version is `0.2.1` (the `.1` because this epic fixes the reported bugs).
 * **Requirements:**
