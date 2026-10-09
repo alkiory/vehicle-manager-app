@@ -697,7 +697,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-006 — Settings layout fixes and restyle (QA bug: text breaks the UI)
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Fix the broken rows in the Reminders block and restyle Settings.
 * **QA evidence (screenshots):** In "Recordatorios" there are three toggle rows: "Notificación de repostaje" (bell icon, on), "Notificación de presión de neumáticos" (check icon, off) and "Vibrar al notificar" (vibrate icon, on). The tire-pressure label runs into its switch and pushes it past the card edge, so the three switches do not share the same right alignment. Also observed: the "km antes" / "días antes" suffixes sit at the top right of the fields instead of being vertically centered, and the two input fields have different widths.
 * **Requirements:**
@@ -714,7 +714,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-007 — Fix reversed digits in reminder numeric inputs (QA bug)
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Make the "Distancia de antelación" and "Días de antelación" inputs behave like normal numeric fields.
 * **QA evidence:** Typing 1, then 2, then 0 shows `201`. After the first digit the caret jumps in front of it, so each new digit is inserted before the previous ones. Same behavior in both inputs.
 * **Requirements:**

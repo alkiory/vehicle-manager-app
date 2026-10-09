@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
@@ -31,26 +32,22 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,11 +60,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.material3.Surface
 import com.example.vehiclemanager.R
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 import com.example.vehiclemanager.feature.vehicles.VehicleBackupViewModel
 import kotlinx.coroutines.launch
 
@@ -119,6 +116,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(AppTheme.gradients.screenBackground)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -148,67 +146,37 @@ fun SettingsScreen(
             SettingsCard(title = stringResource(R.string.reminder_settings_title), icon = Icons.Default.Notifications) {
                 val prefs = uiState.reminderPreferences
 
-                // Advance distance
-                Text(
-                    text = stringResource(R.string.reminder_advance_distance_label),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Row(
+                // Advance distance input
+                OutlinedTextField(
+                    value = if (prefs.advanceDistanceKm > 0) "${prefs.advanceDistanceKm}" else "",
+                    onValueChange = { value ->
+                        val km = value.toLongOrNull() ?: 0L
+                        if (km >= 0) viewModel.setAdvanceDistanceKm(km)
+                    },
+                    label = { Text(stringResource(R.string.reminder_advance_distance_label)) },
+                    suffix = { Text(text = stringResource(R.string.reminder_advance_distance_unit)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = if (prefs.advanceDistanceKm > 0) "${prefs.advanceDistanceKm}" else "",
-                        onValueChange = { value ->
-                            val km = value.toLongOrNull() ?: 0L
-                            if (km >= 0) viewModel.setAdvanceDistanceKm(km)
-                        },
-                        label = { Text(stringResource(R.string.reminder_advance_distance_hint)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                    Text(
-                        text = stringResource(R.string.reminder_advance_distance_unit),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
 
-                // Advance days
-                Text(
-                    text = stringResource(R.string.reminder_advance_days_label),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-                Row(
+                // Advance days input
+                OutlinedTextField(
+                    value = if (prefs.advanceDays > 0) "${prefs.advanceDays}" else "",
+                    onValueChange = { value ->
+                        val days = value.toIntOrNull() ?: 0
+                        if (days >= 0) viewModel.setAdvanceDays(days)
+                    },
+                    label = { Text(stringResource(R.string.reminder_advance_days_label)) },
+                    suffix = { Text(text = stringResource(R.string.reminder_advance_days_unit)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = if (prefs.advanceDays > 0) "${prefs.advanceDays}" else "",
-                        onValueChange = { value ->
-                            val days = value.toIntOrNull() ?: 0
-                            if (days >= 0) viewModel.setAdvanceDays(days)
-                        },
-                        label = { Text(stringResource(R.string.reminder_advance_days_hint)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                    Text(
-                        text = stringResource(R.string.reminder_advance_days_unit),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
 
                 // Notification time
                 Text(
@@ -226,96 +194,39 @@ fun SettingsScreen(
                     modifier = Modifier.padding(top = 8.dp),
                 )
 
-                // Checkboxes
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                        Text(
-                            text = stringResource(R.string.reminder_fuel_enabled),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    Switch(
-                        checked = prefs.fuelNotificationsEnabled,
-                        onCheckedChange = { viewModel.setFuelNotificationsEnabled(it) },
-                        modifier = Modifier.weight(1f),
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    )
-                }
+                // Subtitle for notifications group
+                Text(
+                    text = "Notificaciones",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                        Text(
-                            text = stringResource(R.string.reminder_tire_pressure_enabled),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    Switch(
-                        checked = prefs.tirePressureNotificationsEnabled,
-                        onCheckedChange = { viewModel.setTirePressureNotificationsEnabled(it) },
-                        modifier = Modifier.weight(1f),
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    )
-                }
+                // Notification Toggles
+                ReminderToggleRow(
+                    icon = Icons.Default.Notifications,
+                    label = stringResource(R.string.reminder_fuel_enabled),
+                    checked = prefs.fuelNotificationsEnabled,
+                    onCheckedChange = { viewModel.setFuelNotificationsEnabled(it) },
+                )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Vibration,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                        Text(
-                            text = stringResource(R.string.reminder_vibrate_enabled),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    Switch(
-                        checked = prefs.vibrateOnNotification,
-                        onCheckedChange = { viewModel.setVibrateOnNotification(it) },
-                        modifier = Modifier.weight(1f),
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    )
-                }
+                ReminderToggleRow(
+                    icon = Icons.Default.Notifications,
+                    label = stringResource(R.string.reminder_tire_pressure_enabled),
+                    checked = prefs.tirePressureNotificationsEnabled,
+                    onCheckedChange = { viewModel.setTirePressureNotificationsEnabled(it) },
+                )
+
+                ReminderToggleRow(
+                    icon = Icons.Default.Vibration,
+                    label = stringResource(R.string.reminder_vibrate_enabled),
+                    checked = prefs.vibrateOnNotification,
+                    onCheckedChange = { viewModel.setVibrateOnNotification(it) },
+                )
             }
 
-            // Data management section (moved from VehiclesScreen)
+            // Data management section
             SettingsCard(title = stringResource(R.string.data_management_title), icon = Icons.Default.Backup) {
                 BackupSection(
                     isBusy = backupState.isBusy,
@@ -359,6 +270,48 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ReminderToggleRow(
+    icon: ImageVector,
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+            ),
+        )
     }
 }
 
