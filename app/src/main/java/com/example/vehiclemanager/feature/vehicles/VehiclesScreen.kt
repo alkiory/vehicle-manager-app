@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.feature.vehicles
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,6 +29,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +40,7 @@ import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 
 @Composable
 fun VehiclesScreen(
@@ -60,7 +65,9 @@ fun VehiclesScreen(
         },
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppTheme.gradients.screenBackground),
             contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -106,7 +113,9 @@ fun VehiclesScreen(
 @Composable
 private fun VehicleListLoadingHint() {
     Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator()
@@ -121,7 +130,9 @@ private fun VehicleListEmptyHint(onAddVehicle: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
@@ -173,53 +184,70 @@ private fun VehicleRow(
             .fillMaxWidth()
             .semantics { contentDescription = "Editar ${vehicle.name}" },
         colors = CardDefaults.cardColors(
-            containerColor = if (isActive) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
+            containerColor = Color.Transparent,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = if (isActive) AppTheme.gradients.vehicleCard else SolidColor(MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(12.dp),
+                ),
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(12.dp),
-                    ),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = AppIcons.IconVehicleBadge,
-                    contentDescription = null,
-                    tint = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(
-                    text = vehicle.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "${vehicle.make} ${vehicle.model} · ${vehicle.primaryOdometerKm} km",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            if (isActive) {
-                StatusPill()
-            } else {
-                OutlinedButton(onClick = onActivate) {
-                    Text(text = "Activar")
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            if (isActive) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primaryContainer,
+                            RoundedCornerShape(12.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = AppIcons.IconVehicleBadge,
+                        contentDescription = null,
+                        tint = if (isActive) Color.White else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                ) {
+                    Text(
+                        text = vehicle.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isActive) Color.White else MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "${vehicle.make} ${vehicle.model} · ${vehicle.primaryOdometerKm} km",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isActive) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                if (isActive) {
+                    StatusPill()
+                } else {
+                    OutlinedButton(
+                        onClick = onActivate,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    ) {
+                        Text(text = "Activar")
+                    }
                 }
             }
         }
@@ -230,19 +258,19 @@ private fun VehicleRow(
 private fun StatusPill() {
     Row(
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .background(MaterialTheme.colorScheme.onPrimary, CircleShape),
+                .background(AppTheme.semanticColors.cost, CircleShape),
         )
         Text(
             text = "  Activo",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = Color.White,
         )
     }
 }

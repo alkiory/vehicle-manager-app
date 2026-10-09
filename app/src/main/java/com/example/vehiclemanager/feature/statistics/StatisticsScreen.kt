@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -33,7 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +49,7 @@ import com.example.vehiclemanager.core.domain.StatsPeriod
 import com.example.vehiclemanager.core.domain.VehicleStats
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 import java.util.Locale
 
 @Composable
@@ -63,7 +67,10 @@ fun StatisticsScreen(
     ) {
         if (uiState.activeVehicle == null) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppTheme.gradients.screenBackground)
+                    .padding(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -97,7 +104,9 @@ private fun StatisticsContent(
     onPeriodSelected: (StatsPeriod) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -140,8 +149,16 @@ private fun PeriodSelector(
                     onClick = { onPeriodSelected(period) },
                     label = { Text(text = period.displayName) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = Color.Transparent,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selected,
+                        selectedBorderColor = MaterialTheme.colorScheme.primary,
+                        borderColor = MaterialTheme.colorScheme.outline,
                     ),
                 )
             }
@@ -153,6 +170,7 @@ private fun PeriodSelector(
 private fun SummaryCard(stats: VehicleStats) {
     SummaryCardShell(
         icon = Icons.Default.AccountBalanceWallet,
+        chipBrush = AppTheme.gradients.barCurrent,
         title = "Resumen",
     ) {
         SummaryMetricRow("Coste total", formatCents(stats.totalCostCents))
@@ -166,6 +184,7 @@ private fun SummaryCard(stats: VehicleStats) {
         SummaryMetricRow(
             "Coste por kilómetro",
             stats.costPerKilometerCentsX100?.let { formatHundredthsCents(it) } ?: "No disponible",
+            valueColor = AppTheme.semanticColors.cost,
         )
         SummaryDivider()
         SummaryMetricRow("Gasto mensual medio", formatCents(stats.averageMonthlySpendCents))
@@ -173,13 +192,19 @@ private fun SummaryCard(stats: VehicleStats) {
 }
 
 @Composable
-private fun SummaryMetricRow(label: String, value: String) {
+private fun SummaryMetricRow(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Text(text = value, fontWeight = FontWeight.SemiBold)
+        Text(text = value, fontWeight = FontWeight.SemiBold, color = valueColor)
     }
 }
 
@@ -188,7 +213,7 @@ private fun SummaryDivider() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
         ),
     ) {
         Spacer(modifier = Modifier.height(1.dp))
@@ -199,6 +224,7 @@ private fun SummaryDivider() {
 private fun MonthlyExpenseCard(values: List<MonthlyExpenditure>, modifier: Modifier = Modifier) {
     SummaryCardShell(
         icon = Icons.Default.TrendingUp,
+        chipBrush = AppTheme.gradients.vehicleCard,
         title = "Gasto mensual",
         modifier = modifier,
     ) {
@@ -211,7 +237,8 @@ private fun MonthlyExpenseCard(values: List<MonthlyExpenditure>, modifier: Modif
         } else {
             BarChart(
                 values = values.map { it.totalCostCents },
-                color = MaterialTheme.colorScheme.primary,
+                currentBarBrush = AppTheme.gradients.barCurrent,
+                previousBarBrush = AppTheme.gradients.barPrevious,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
@@ -232,6 +259,7 @@ private fun MonthlyExpenseCard(values: List<MonthlyExpenditure>, modifier: Modif
 private fun FuelPriceCard(values: List<MonthlyFuelPrice>, modifier: Modifier = Modifier) {
     SummaryCardShell(
         icon = Icons.Default.BarChart,
+        chipBrush = AppTheme.gradients.fuelChip,
         title = "Tendencia del precio del combustible",
         modifier = modifier,
     ) {
@@ -244,7 +272,8 @@ private fun FuelPriceCard(values: List<MonthlyFuelPrice>, modifier: Modifier = M
         } else {
             LineChart(
                 values = values.map { it.averagePricePerLiterCents },
-                color = MaterialTheme.colorScheme.tertiary,
+                lineColor = AppTheme.semanticColors.alert,
+                fillBrush = AppTheme.gradients.priceTrendFill,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
@@ -266,6 +295,7 @@ private fun FuelPriceCard(values: List<MonthlyFuelPrice>, modifier: Modifier = M
 @Composable
 private fun SummaryCardShell(
     icon: ImageVector,
+    chipBrush: Brush,
     title: String,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -280,13 +310,13 @@ private fun SummaryCardShell(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(10.dp)),
+                        .background(chipBrush, RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -303,30 +333,41 @@ private fun SummaryCardShell(
 }
 
 @Composable
-private fun BarChart(values: List<Long>, color: Color, modifier: Modifier = Modifier) {
+private fun BarChart(
+    values: List<Long>,
+    currentBarBrush: Brush,
+    previousBarBrush: Brush,
+    modifier: Modifier = Modifier,
+) {
     val maximum = remember(values) { values.maxOrNull()?.coerceAtLeast(1L) ?: 1L }
     Canvas(modifier = modifier) {
         val slotWidth = size.width / values.size.coerceAtLeast(1)
         val barWidth = slotWidth * 0.62f
         values.forEachIndexed { index, value ->
             val height = size.height * (value.toFloat() / maximum.toFloat())
+            val brush = if (index == values.lastIndex) currentBarBrush else previousBarBrush
             drawRect(
-                color = color,
+                brush = brush,
                 topLeft = Offset(index * slotWidth + (slotWidth - barWidth) / 2f, size.height - height),
-                size = androidx.compose.ui.geometry.Size(barWidth, height),
+                size = Size(barWidth, height),
             )
         }
     }
 }
 
 @Composable
-private fun LineChart(values: List<Long>, color: Color, modifier: Modifier = Modifier) {
+private fun LineChart(
+    values: List<Long>,
+    lineColor: Color,
+    fillBrush: Brush,
+    modifier: Modifier = Modifier,
+) {
     val maximum = remember(values) { values.maxOrNull()?.coerceAtLeast(1L) ?: 1L }
     val minimum = remember(values) { values.minOrNull() ?: 0L }
     Canvas(modifier = modifier) {
         if (values.size == 1) {
             val y = size.height / 2f
-            drawCircle(color = color, radius = 6.dp.toPx(), center = Offset(size.width / 2f, y))
+            drawCircle(color = lineColor, radius = 6.dp.toPx(), center = Offset(size.width / 2f, y))
         } else {
             val range = (maximum - minimum).coerceAtLeast(1L).toFloat()
             val step = size.width / (values.size - 1).toFloat()
@@ -336,10 +377,28 @@ private fun LineChart(values: List<Long>, color: Color, modifier: Modifier = Mod
                     y = size.height - ((value - minimum).toFloat() / range * size.height),
                 )
             }
-            points.zipWithNext().forEach { (start, end) ->
-                drawLine(color = color, start = start, end = end, strokeWidth = 4.dp.toPx())
+
+            // Draw filled gradient area under the line
+            val fillPath = Path().apply {
+                moveTo(points.first().x, size.height)
+                lineTo(points.first().x, points.first().y)
+                points.drop(1).forEach { point ->
+                    lineTo(point.x, point.y)
+                }
+                lineTo(points.last().x, size.height)
+                close()
             }
-            points.forEach { point -> drawCircle(color = color, radius = 5.dp.toPx(), center = point) }
+            drawPath(path = fillPath, brush = fillBrush)
+
+            // Draw line
+            points.zipWithNext().forEach { (start, end) ->
+                drawLine(color = lineColor, start = start, end = end, strokeWidth = 4.dp.toPx())
+            }
+
+            // Draw endpoints/markers
+            points.forEach { point ->
+                drawCircle(color = lineColor, radius = 5.dp.toPx(), center = point)
+            }
         }
     }
 }

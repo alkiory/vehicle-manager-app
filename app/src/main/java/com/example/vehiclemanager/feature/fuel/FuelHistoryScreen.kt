@@ -1,27 +1,35 @@
 package com.example.vehiclemanager.feature.fuel
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 import java.text.DateFormat
 import java.util.Date
 
@@ -106,7 +116,12 @@ fun FuelHistoryScreen(
 
 @Composable
 private fun LoadingContent() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground),
+        contentAlignment = Alignment.Center,
+    ) {
         CircularProgressIndicator()
     }
 }
@@ -116,6 +131,7 @@ private fun EmptyFuelContent(message: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground)
             .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -131,7 +147,9 @@ private fun FuelRecordList(
     onRequestDelete: (FuelRecord) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -182,29 +200,66 @@ private fun FuelRecordCard(
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        ListItem(
-            headlineContent = {
-                Text(text = dateFormatter.format(Date(record.timestampMs)))
-            },
-            supportingContent = {
-                Text(text = "${formatLiters(record.litersX100)} · ${record.odometerKm} km")
-            },
-            trailingContent = {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(text = formatCents(record.totalCostCents))
-                    Text(
-                        text = if (record.isFullTank) "Lleno" else "Parcial",
-                        color = if (record.isFullTank) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-            },
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Vertical side bar with teal fuel gradient
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(40.dp)
+                    .background(AppTheme.gradients.fuelChip, CircleShape),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Teal Fuel Drop Icon
+            Icon(
+                imageVector = AppIcons.IconFuelDrop,
+                contentDescription = null,
+                tint = AppTheme.semanticColors.fuel,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = record.stationName ?: dateFormatter.format(Date(record.timestampMs)),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "${formatLiters(record.litersX100)} · ${record.odometerKm} km",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${formatCents(record.totalCostCents)} €",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.semanticColors.cost,
+                )
+                Text(
+                    text = if (record.isFullTank) "Lleno" else "Parcial",
+                    color = if (record.isFullTank) {
+                        AppTheme.semanticColors.fuel
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
     }
 }
 

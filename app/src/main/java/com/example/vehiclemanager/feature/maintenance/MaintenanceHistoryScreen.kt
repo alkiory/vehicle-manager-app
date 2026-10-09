@@ -1,20 +1,28 @@
 package com.example.vehiclemanager.feature.maintenance
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -30,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vehiclemanager.core.domain.MaintenanceCategory
@@ -37,6 +46,7 @@ import com.example.vehiclemanager.core.domain.MaintenanceRecord
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
+import com.example.vehiclemanager.core.ui.theme.AppTheme
 import java.text.DateFormat
 import java.util.Date
 
@@ -62,7 +72,12 @@ fun MaintenanceHistoryScreen(
         },
     ) {
         when {
-            uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            uiState.isLoading -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppTheme.gradients.screenBackground),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator() }
             uiState.activeVehicle == null -> EmptyMaintenanceContent("Añade un vehículo para ver el historial de mantenimiento.")
             uiState.records.isEmpty() -> EmptyMaintenanceContent("Aún no hay registros de servicio.")
             else -> MaintenanceRecordList(
@@ -90,7 +105,13 @@ fun MaintenanceHistoryScreen(
 
 @Composable
 private fun EmptyMaintenanceContent(message: String) {
-    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(text = message, style = MaterialTheme.typography.bodyLarge)
     }
 }
@@ -103,7 +124,9 @@ private fun MaintenanceRecordList(
     onRequestDelete: (MaintenanceRecord) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.gradients.screenBackground),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -119,10 +142,16 @@ private fun MaintenanceRecordList(
                 enableDismissFromStartToEnd = false,
                 backgroundContent = {
                     Box(
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Eliminar registro de mantenimiento" },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = "Eliminar registro de mantenimiento" },
                         contentAlignment = Alignment.CenterEnd,
                     ) {
-                        Text(text = "Eliminar", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 20.dp))
+                        Text(
+                            text = "Eliminar",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                        )
                     }
                 },
                 content = { MaintenanceRecordCard(record, onClick = { onOpenEdit(record.id) }) },
@@ -134,14 +163,58 @@ private fun MaintenanceRecordList(
 @Composable
 private fun MaintenanceRecordCard(record: MaintenanceRecord, onClick: () -> Unit) {
     val formatter = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text(text = record.title) },
-            supportingContent = {
-                Text(text = "${record.category.displayName} · ${record.odometerKm} km · ${formatter.format(Date(record.timestampMs))}")
-            },
-            trailingContent = { Text(text = formatCents(record.costCents)) },
-        )
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Vertical side bar with coral maintenance gradient
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(40.dp)
+                    .background(AppTheme.gradients.maintenanceChip, CircleShape),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Coral Wrench Icon
+            Icon(
+                imageVector = AppIcons.IconWrench,
+                contentDescription = null,
+                tint = AppTheme.semanticColors.maintenance,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = record.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "${record.category.displayName} · ${record.odometerKm} km · ${formatter.format(Date(record.timestampMs))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Text(
+                text = "${formatCents(record.costCents)} €",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = AppTheme.semanticColors.cost,
+            )
+        }
     }
 }
 

@@ -670,7 +670,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-004 — Statistics and Vehicles restyle
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Apply the design to Statistics and Vehicles.
 * **Requirements:**
   1. Statistics: icon chips of each card use the gradient chips (summary, monthly spending, price trend).
@@ -684,7 +684,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-005 — Fuel, Maintenance and form screens restyle
-* **Status:** `BACKLOG`
+* **Status:** `🟢 DONE`
 * **Objective:** Apply semantic colors to the remaining screens.
 * **Requirements:**
   1. Fuel screen: teal accents on icons and side bars.
@@ -697,7 +697,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-006 — Settings layout fixes and restyle (QA bug: text breaks the UI)
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Fix the broken rows in the Reminders block and restyle Settings.
 * **QA evidence (screenshots):** In "Recordatorios" there are three toggle rows: "Notificación de repostaje" (bell icon, on), "Notificación de presión de neumáticos" (check icon, off) and "Vibrar al notificar" (vibrate icon, on). The tire-pressure label runs into its switch and pushes it past the card edge, so the three switches do not share the same right alignment. Also observed: the "km antes" / "días antes" suffixes sit at the top right of the fields instead of being vertically centered, and the two input fields have different widths.
 * **Requirements:**
