@@ -834,7 +834,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-003 — Apply to the new service (maintenance) form
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Same behavior for the Maintenance screen, reusing the TASK-001 mechanism.
 * **Requirements:**
   1. Wire the service form to the guard; all exit paths use `requestExit`.
@@ -847,7 +847,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-004 — Regression check and version 0.2.2
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Close the epic with a regression pass and the version bump.
 * **Requirements:**
   1. Walk through the behavior matrix on both forms, with gesture navigation and 3-button navigation, and fix anything that deviates.

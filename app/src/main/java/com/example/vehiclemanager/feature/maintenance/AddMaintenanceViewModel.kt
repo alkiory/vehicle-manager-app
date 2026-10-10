@@ -10,8 +10,10 @@ import com.example.vehiclemanager.core.domain.MaintenanceRecordRepository
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
+import com.example.vehiclemanager.core.ui.navigation.FormGuardHandler
+import com.example.vehiclemanager.core.ui.navigation.FormStateHolder
+import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,25 +27,46 @@ class AddMaintenanceViewModel @Inject constructor(
     private val maintenanceRecordRepository: MaintenanceRecordRepository,
     private val vehicleRepository: VehicleRepository,
     private val formDirtyStateHolder: FormDirtyStateHolder,
+    private val navigationGuard: NavigationGuard,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val recordId = savedStateHandle.get<Long>(RECORD_ID_KEY) ?: 0L
     private val dirtyToken = Any()
+    private val formStateHolder = FormStateHolder(MaintenanceFormData())
+    private var onCloseFormListener: (() -> Unit)? = null
+
     private val _uiState = MutableStateFlow(
         AddMaintenanceUiState(isEditing = recordId != 0L, recordId = recordId),
     )
     val uiState: StateFlow<AddMaintenanceUiState> = _uiState.asStateFlow()
 
-    init {
-        if (recordId != 0L) loadRecord(recordId) else startCreateMode()
-        viewModelScope.launch {
-            _uiState.collect { state ->
-                formDirtyStateHolder.setDirty(token = dirtyToken, isDirty = state.isDirty)
-            }
+    private val guardHandler = object : FormGuardHandler {
+        override fun isDirty(): Boolean = formStateHolder.isDirty
+
+        override fun onSave(onSuccess: () -> Unit, onFailure: () -> Unit) {
+            saveWithCallbacks(onSuccess, onFailure)
+        }
+
+        override fun onDiscard() {
+            resetForm()
+        }
+
+        override fun onCloseForm() {
+            onCloseFormListener?.invoke()
         }
     }
 
+    init {
+        navigationGuard.registerGuard(guardHandler)
+        if (recordId != 0L) loadRecord(recordId) else startCreateMode()
+    }
+
+    fun setOnCloseFormListener(listener: (() -> Unit)?) {
+        onCloseFormListener = listener
+    }
+
     override fun onCleared() {
+        navigationGuard.unregisterGuard(guardHandler)
         formDirtyStateHolder.setDirty(dirtyToken, false)
         super.onCleared()
     }
@@ -54,7 +77,10 @@ class AddMaintenanceViewModel @Inject constructor(
 
     fun updateCost(value: String) = updateForm { copy(cost = value) }
 
-    fun updateOdometer(value: String) = updateForm { copy(odometerKm = value) }
+    fun updateOdometer(value: String) {
+        _uiState.update { it.copy(odometerManuallyEdited = true) }
+        updateForm { copy(odometerKm = value) }
+    }
 
     fun updateTimestamp(value: Long) = updateForm { copy(timestampMs = value) }
 
@@ -62,7 +88,12 @@ class AddMaintenanceViewModel @Inject constructor(
 
     fun updatePerformedBy(value: String) = updateForm { copy(performedBy = value) }
 
-    fun save() {
+    fun save() = saveWithCallbacks()
+
+    fun saveWithCallbacks(
+        onSuccess: (() -> Unit)? = null,
+        onFailure: (() -> Unit)? = null,
+    ) {
         val state = _uiState.value
         val errors = state.form.validate(state.previousOdometerKm)
         val costCents = maintenanceCostToCents(state.form.cost)
@@ -74,22 +105,31 @@ class AddMaintenanceViewModel @Inject constructor(
 
         if (completeErrors.hasErrors) {
             _uiState.update { it.copy(errors = completeErrors) }
+            onFailure?.invoke()
             return
         }
 
         val activeVehicle = state.activeVehicle
         if (activeVehicle == null) {
             _uiState.update { it.copy(noActiveVehicle = true, saveError = "no_active_vehicle") }
+            onFailure?.invoke()
             return
         }
 
-        val serviceOdometerKm = odometerKm ?: return
+        val serviceOdometerKm = odometerKm ?: run {
+            onFailure?.invoke()
+            return
+        }
+
         val record = MaintenanceRecord(
             id = state.recordId,
             vehicleId = activeVehicle.id,
             title = state.form.title.trim(),
             category = state.form.category,
-            costCents = costCents ?: return,
+            costCents = costCents ?: run {
+                onFailure?.invoke()
+                return
+            },
             odometerKm = serviceOdometerKm,
             timestampMs = state.form.timestampMs,
             notes = state.form.notes.trim().ifEmpty { null },
@@ -110,12 +150,28 @@ class AddMaintenanceViewModel @Inject constructor(
                     )
                 }
             }.onSuccess {
+                resetForm()
                 _uiState.update { it.copy(isSaving = false, saveCompleted = true) }
+                onSuccess?.invoke()
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(isSaving = false, saveError = throwable.message ?: "save_failed")
                 }
+                onFailure?.invoke()
             }
+        }
+    }
+
+    fun resetForm() {
+        formStateHolder.reset()
+        formDirtyStateHolder.setDirty(dirtyToken, false)
+        _uiState.update { state ->
+            state.copy(
+                form = formStateHolder.currentValue,
+                isDirty = false,
+                errors = MaintenanceValidationErrors(),
+                saveError = null,
+            )
         }
     }
 
@@ -126,14 +182,19 @@ class AddMaintenanceViewModel @Inject constructor(
             activeVehicleRepository.activeVehicle.collect { vehicle ->
                 _uiState.update { state ->
                     val shouldPrefill = !state.odometerManuallyEdited
+                    var form = state.form
+                    if (shouldPrefill && vehicle != null) {
+                        form = form.copy(odometerKm = vehicle.primaryOdometerKm.toString())
+                        formStateHolder.setInitial(form, updateCurrent = true)
+                        formDirtyStateHolder.setDirty(dirtyToken, false)
+                    }
                     state.copy(
                         isLoading = false,
                         activeVehicle = vehicle,
                         previousOdometerKm = vehicle?.primaryOdometerKm,
-                        form = if (shouldPrefill && vehicle != null) {
-                            state.form.copy(odometerKm = vehicle.primaryOdometerKm.toString())
-                        } else state.form,
+                        form = form,
                         noActiveVehicle = vehicle == null,
+                        isDirty = formStateHolder.isDirty,
                     )
                 }
             }
@@ -148,27 +209,34 @@ class AddMaintenanceViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false, loadError = "record_not_found") }
                 return@launch
             }
+            val initialForm = record.toFormData()
+            formStateHolder.setInitial(initialForm, updateCurrent = true)
+            formDirtyStateHolder.setDirty(dirtyToken, false)
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     activeVehicle = vehicle,
                     recordId = record.id,
                     previousOdometerKm = vehicle?.primaryOdometerKm,
-                    form = record.toFormData(),
+                    form = initialForm,
                     noActiveVehicle = vehicle == null,
+                    isDirty = false,
                 )
             }
         }
     }
 
     private fun updateForm(transform: MaintenanceFormData.() -> MaintenanceFormData) {
+        val updated = formStateHolder.currentValue.transform()
+        formStateHolder.update(updated)
+        val isDirty = formStateHolder.isDirty
+        formDirtyStateHolder.setDirty(dirtyToken, isDirty)
         _uiState.update { state ->
             state.copy(
-                form = state.form.transform(),
+                form = updated,
                 errors = MaintenanceValidationErrors(),
                 saveError = null,
-                odometerManuallyEdited = true,
-                isDirty = true,
+                isDirty = isDirty,
             )
         }
     }

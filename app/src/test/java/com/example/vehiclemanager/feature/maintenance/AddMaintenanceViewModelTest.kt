@@ -7,20 +7,24 @@ import com.example.vehiclemanager.core.domain.MaintenanceRecord
 import com.example.vehiclemanager.core.domain.MaintenanceRecordRepository
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
-import com.example.vehiclemanager.core.ui.navigation.AddEditMaintenanceRoute
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
+import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import com.example.vehiclemanager.feature.fuel.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 class AddMaintenanceViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    private val navigationGuard = NavigationGuard()
 
     @Test
     fun savePersistsServiceAndAdvancesVehicleOdometer() = runTest {
@@ -32,6 +36,7 @@ class AddMaintenanceViewModelTest {
             maintenanceRecordRepository = recordRepository,
             vehicleRepository = FakeVehicleRepository(updatedVehicles),
             formDirtyStateHolder = FormDirtyStateHolder(),
+            navigationGuard = navigationGuard,
             savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
         )
 
@@ -52,6 +57,7 @@ class AddMaintenanceViewModelTest {
             maintenanceRecordRepository = FakeMaintenanceRepository(),
             vehicleRepository = FakeVehicleRepository(mutableListOf()),
             formDirtyStateHolder = formDirtyStateHolder,
+            navigationGuard = navigationGuard,
             savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
         )
 
@@ -59,6 +65,47 @@ class AddMaintenanceViewModelTest {
 
         assertEquals(true, viewModel.uiState.value.isDirty)
         assertEquals(1, formDirtyStateHolder.dirtyTokens.value.size)
+    }
+
+    @Test
+    fun prefilledStateIsCleanAndRevertingEditsReturnsToClean() = runTest {
+        val formDirtyStateHolder = FormDirtyStateHolder()
+        val viewModel = AddMaintenanceViewModel(
+            activeVehicleRepository = FakeActiveVehicleRepository(vehicle(10_000)),
+            maintenanceRecordRepository = FakeMaintenanceRepository(),
+            vehicleRepository = FakeVehicleRepository(mutableListOf()),
+            formDirtyStateHolder = formDirtyStateHolder,
+            navigationGuard = navigationGuard,
+            savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
+        )
+
+        assertFalse(viewModel.uiState.value.isDirty)
+
+        viewModel.updateTitle("Tire rotation")
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.updateTitle("")
+        assertFalse(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun resetFormClearsDirtyState() = runTest {
+        val formDirtyStateHolder = FormDirtyStateHolder()
+        val viewModel = AddMaintenanceViewModel(
+            activeVehicleRepository = FakeActiveVehicleRepository(vehicle(10_000)),
+            maintenanceRecordRepository = FakeMaintenanceRepository(),
+            vehicleRepository = FakeVehicleRepository(mutableListOf()),
+            formDirtyStateHolder = formDirtyStateHolder,
+            navigationGuard = navigationGuard,
+            savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
+        )
+
+        viewModel.updateTitle("Tire rotation")
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.resetForm()
+        assertFalse(viewModel.uiState.value.isDirty)
+        assertEquals("", viewModel.uiState.value.form.title)
     }
 
     private fun vehicle(odometerKm: Long) = Vehicle(

@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +55,13 @@ fun AddMaintenanceScreen(
     val uiState by viewModel.uiState.collectAsState()
     val unsavedChangesState = rememberUnsavedChangesState()
 
+    DisposableEffect(viewModel) {
+        viewModel.setOnCloseFormListener(onNavigateBack)
+        onDispose {
+            viewModel.setOnCloseFormListener(null)
+        }
+    }
+
     LaunchedEffect(uiState.saveCompleted) {
         if (uiState.saveCompleted) {
             viewModel.consumeSaveCompleted()
@@ -64,7 +72,11 @@ fun AddMaintenanceScreen(
     UnsavedChangesGuard(
         state = unsavedChangesState,
         isDirty = uiState.isDirty && !uiState.isSaving,
-        onDiscard = onNavigateBack,
+        onSave = viewModel::save,
+        onDiscard = {
+            viewModel.resetForm()
+            onNavigateBack()
+        },
     )
 
     VehicleManagerScreen(
@@ -73,7 +85,12 @@ fun AddMaintenanceScreen(
                 title = if (uiState.isEditing) "Editar servicio" else "Nuevo servicio",
                 actions = {
                     TextButton(onClick = {
-                        if (uiState.isDirty) unsavedChangesState.requestConfirmation() else onNavigateBack()
+                        if (uiState.isDirty) {
+                            unsavedChangesState.requestConfirmation()
+                        } else {
+                            viewModel.resetForm()
+                            onNavigateBack()
+                        }
                     }) { Text(text = "Cancelar") }
                 },
             )
