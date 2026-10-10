@@ -2,11 +2,8 @@ package com.example.vehiclemanager.core.ui.navigation
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -19,11 +16,42 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppScaffoldViewModelTest {
-    private val mainDispatcher = UnconfinedTestDispatcher()
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var formDirtyStateHolder: FormDirtyStateHolder
+    private lateinit var navigationGuard: NavigationGuard
+    private lateinit var viewModel: AppScaffoldViewModel
+
+    private class MockFormGuardHandler(
+        var dirty: Boolean = false,
+        var saveShouldSucceed: Boolean = true,
+    ) : FormGuardHandler {
+        var saveCalled = false
+        var discardCalled = false
+        var closeCalled = false
+
+        override fun isDirty(): Boolean = dirty
+
+        override fun onSave(onSuccess: () -> Unit, onFailure: () -> Unit) {
+            saveCalled = true
+            if (saveShouldSucceed) onSuccess() else onFailure()
+        }
+
+        override fun onDiscard() {
+            discardCalled = true
+        }
+
+        override fun onCloseForm() {
+            closeCalled = true
+        }
+    }
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(mainDispatcher)
+        Dispatchers.setMain(testDispatcher)
+        formDirtyStateHolder = FormDirtyStateHolder()
+        navigationGuard = NavigationGuard()
+        viewModel = AppScaffoldViewModel(formDirtyStateHolder, navigationGuard)
     }
 
     @After
@@ -32,36 +60,19 @@ class AppScaffoldViewModelTest {
     }
 
     @Test
-    fun dirtyTokensTrackRegistration() = runTest {
-        val holder = FormDirtyStateHolder()
-        val token = Any()
+    fun `navigation proceeds immediately when no dirty form exists`() {
+        var navigated = false
 
-        holder.setDirty(token, isDirty = true)
-        assertEquals(setOf(token), holder.dirtyTokens.value)
+        viewModel.onPrimaryDestinationSelected { navigated = true }
 
-        holder.setDirty(token, isDirty = false)
-        assertEquals(emptySet<Any>(), holder.dirtyTokens.value)
+        assertTrue(navigated)
+        assertNull(viewModel.uiState.value.pendingDestination)
     }
 
     @Test
-    fun clearAllRemovesEveryRegistration() = runTest {
-        val holder = FormDirtyStateHolder()
-        val first = Any()
-        val second = Any()
-
-        holder.setDirty(first, isDirty = true)
-        holder.setDirty(second, isDirty = true)
-        holder.clearAll()
-
-        assertEquals(emptySet<Any>(), holder.dirtyTokens.value)
-    }
-
-    @Test
-    fun navigationIsBlockedWhileAFormIsDirty() = runTest {
-        val holder = FormDirtyStateHolder()
-        val viewModel = AppScaffoldViewModel(holder)
-        val token = Any()
-        holder.setDirty(token, isDirty = true)
+    fun `navigation is held when active guard is dirty`() {
+        val handler = MockFormGuardHandler(dirty = true)
+        navigationGuard.registerGuard(handler)
 
         var navigated = false
         viewModel.onPrimaryDestinationSelected { navigated = true }
@@ -71,43 +82,67 @@ class AppScaffoldViewModelTest {
     }
 
     @Test
-    fun confirmingDiscardClearsDirtyStateAndRunsPendingNavigation() = runTest {
-        val holder = FormDirtyStateHolder()
-        val viewModel = AppScaffoldViewModel(holder)
-        val token = Any()
-        holder.setDirty(token, isDirty = true)
+    fun `confirmSave executes save, closes form and navigates on success`() {
+        val handler = MockFormGuardHandler(dirty = true, saveShouldSucceed = true)
+        navigationGuard.registerGuard(handler)
 
         var navigated = false
         viewModel.onPrimaryDestinationSelected { navigated = true }
+
+        viewModel.confirmSave()
+
+        assertTrue(handler.saveCalled)
+        assertTrue(handler.closeCalled)
+        assertTrue(navigated)
+        assertNull(viewModel.uiState.value.pendingDestination)
+    }
+
+    @Test
+    fun `confirmSave cancels navigation and stays on form if save fails`() {
+        val handler = MockFormGuardHandler(dirty = true, saveShouldSucceed = false)
+        navigationGuard.registerGuard(handler)
+
+        var navigated = false
+        viewModel.onPrimaryDestinationSelected { navigated = true }
+
+        viewModel.confirmSave()
+
+        assertTrue(handler.saveCalled)
+        assertFalse(handler.closeCalled)
+        assertFalse(navigated)
+        assertNull(viewModel.uiState.value.pendingDestination)
+    }
+
+    @Test
+    fun `confirmDiscard discards draft, closes form and navigates`() {
+        val handler = MockFormGuardHandler(dirty = true)
+        navigationGuard.registerGuard(handler)
+
+        var navigated = false
+        viewModel.onPrimaryDestinationSelected { navigated = true }
+
         viewModel.confirmDiscard()
 
-        assertEquals(emptySet<Any>(), holder.dirtyTokens.value)
-        assertNull(viewModel.uiState.value.pendingDestination)
+        assertTrue(handler.discardCalled)
+        assertTrue(handler.closeCalled)
         assertTrue(navigated)
+        assertNull(viewModel.uiState.value.pendingDestination)
     }
 
     @Test
-    fun navigationRunsImmediatelyWhenNoFormIsDirty() = runTest {
-        val viewModel = AppScaffoldViewModel(FormDirtyStateHolder())
+    fun `dismiss cancels pending navigation without modifying form`() {
+        val handler = MockFormGuardHandler(dirty = true)
+        navigationGuard.registerGuard(handler)
 
         var navigated = false
         viewModel.onPrimaryDestinationSelected { navigated = true }
 
-        assertTrue(navigated)
-        assertNull(viewModel.uiState.value.pendingDestination)
-    }
-
-    @Test
-    fun dismissDropsThePendingNavigation() = runTest {
-        val holder = FormDirtyStateHolder()
-        val viewModel = AppScaffoldViewModel(holder)
-        holder.setDirty(Any(), isDirty = true)
-
-        viewModel.onPrimaryDestinationSelected { }
         viewModel.dismiss()
 
+        assertFalse(handler.saveCalled)
+        assertFalse(handler.discardCalled)
+        assertFalse(handler.closeCalled)
+        assertFalse(navigated)
         assertNull(viewModel.uiState.value.pendingDestination)
-        // Dirty forms remain registered: the user stayed on the form.
-        assertEquals(1, holder.dirtyTokens.value.size)
     }
 }

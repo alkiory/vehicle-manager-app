@@ -202,13 +202,18 @@ fun AppScaffold(
             title = { Text(text = stringResource(R.string.unsaved_changes_title)) },
             text = { Text(text = stringResource(R.string.unsaved_changes_message)) },
             confirmButton = {
-                Button(onClick = viewModel::confirmDiscard) {
-                    Text(text = stringResource(R.string.unsaved_changes_discard))
+                Button(onClick = viewModel::confirmSave) {
+                    Text(text = stringResource(R.string.unsaved_changes_save))
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismiss) {
-                    Text(text = stringResource(R.string.unsaved_changes_keep))
+                Row {
+                    TextButton(onClick = viewModel::confirmDiscard) {
+                        Text(text = stringResource(R.string.unsaved_changes_discard))
+                    }
+                    TextButton(onClick = viewModel::dismiss) {
+                        Text(text = stringResource(R.string.unsaved_changes_keep))
+                    }
                 }
             },
         )

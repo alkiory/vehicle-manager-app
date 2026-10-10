@@ -757,3 +757,105 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
   * About shows `Vehicle Manager v0.2.1`.
   * A future version bump only requires changing Gradle.
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+### EPIC-021 — Form Dismissal and Unsaved Changes Guard (v0.2.2)
+
+**Objective:** Fix the behavior of the "new fuel entry" and "new service" forms when the user leaves them. Today, if the user opens either form, switches to another tab and comes back, the form is still open. Expected behavior: leaving a form without touching anything closes it; leaving after modifying any input asks whether to save the changes.
+
+**Behavior matrix (applies to both forms):**
+
+| Exit trigger | Form untouched | Form modified |
+|---|---|---|
+| Tap on another bottom-nav tab | Close form, navigate | Show confirmation dialog, hold navigation until the user decides |
+| System back / back gesture | Close form (back to the list) | Show confirmation dialog |
+| In-form close / cancel control | Close form | Show confirmation dialog |
+| Return to the tab later | List is shown (form closed) | List is shown (form closed, draft already resolved by the dialog) |
+| Rotation / app sent to background and back | Form and draft preserved | Form and draft preserved (not an exit) |
+
+**Confirmation dialog (user-facing strings in Spanish):**
+- Title: "¿Guardar cambios?"
+- Message: "Has modificado el formulario. ¿Quieres guardarlo antes de salir?"
+- Buttons:
+  - "Guardar": validate and save. If validation fails, stay in the form and show the field errors, and cancel the pending navigation. If it succeeds, close the form and continue the pending navigation.
+  - "Descartar": drop the draft, close the form, continue the pending navigation.
+  - "Seguir editando": dismiss the dialog, stay in the form, cancel the pending navigation.
+- Tapping outside the dialog or pressing back while it is shown behaves like "Seguir editando".
+
+**Definition of "modified":** any user-editable field differs from its initial value. Values prefilled by the app (default date and time, suggested odometer, default fuel type, etc.) count as the initial value. Typing something and then erasing it back to the initial value makes the form clean again.
+
+**Global constraints:**
+- Code, identifiers and comments in English. User-facing strings stay in Spanish (use string resources if the project already does).
+- Do not change domain rules, Room entities, DAOs or repository behavior. Save logic is reused as is.
+- Use the existing theme tokens (no hardcoded colors); the dialog uses Material 3 `AlertDialog` styled with the current theme.
+- Build one reusable mechanism and apply it to both forms; do not duplicate logic per screen.
+- Root causes below are hypotheses. Inspect the code and confirm before fixing.
+- Execute one task at a time. Do not start the next task without instruction.
+
+**Out of scope:**
+- The "new vehicle" form (the mechanism must be reusable so it can be applied later).
+- Draft persistence across app restarts or process death.
+
+---
+
+#### TASK-001 — Reusable unsaved-changes guard (dirty tracking, dialog, navigation interception)
+* **Status:** `🟢 DONE`
+* **Objective:** Provide a single, tested mechanism that tracks whether a form is modified, intercepts every exit path and drives the confirmation dialog.
+* **Requirements:**
+  1. Inspect how the forms are currently shown and where the "form is open" state lives. Probable cause of the bug (verify): the flag lives in a ViewModel, `rememberSaveable` or a navigation back-stack entry that is saved and restored when switching tabs (`saveState` / `restoreState` on the bottom navigation), so the form reappears on return.
+  2. Create a form-state holder (plain class or small ViewModel helper) that keeps the initial values, the current values, an `isDirty` derived state and a `reset()` method. `isDirty` compares the current values against the initial ones, not "has the user typed".
+  3. Create a shared guard composable or modifier (e.g. `UnsavedChangesGuard`) that:
+    - registers a `BackHandler` that is enabled only while the form is open and dirty,
+    - exposes a `requestExit(onAllowed: () -> Unit)` function: if not dirty it runs `onAllowed` immediately, if dirty it shows the dialog and keeps `onAllowed` as the pending action,
+    - renders the confirmation dialog with the three actions described in the epic.
+  4. Intercept bottom-navigation clicks: before navigating, the navigation bar asks the active form (if any) through a shared hook, for example a `NavigationGuard` held in a ViewModel or `CompositionLocal` that the form registers and unregisters. The navigation happens only after the guard allows it. Do not hardcode screen-specific checks inside the navigation bar.
+  5. State of the dialog and of the pending action must survive rotation.
+  6. Add unit tests for the form-state holder (dirty/clean transitions, typing then reverting, prefilled defaults) and for the guard logic (allowed when clean, held when dirty, Guardar / Descartar / Seguir editando outcomes).
+* **Acceptance Criteria:**
+  * The guard can be attached to any form with a few lines.
+  * Unit tests cover the transitions in the behavior matrix.
+  * No visual or behavioral change in the app yet (forms are wired in the next tasks).
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-002 — Apply to the new fuel entry form
+* **Status:** `READY`
+* **Objective:** Fix the stale form and add the unsaved-changes prompt in the fuel screen.
+* **Requirements:**
+  1. Wire the form to the guard from TASK-001: all exit paths (bottom-nav tab change, system back / gesture, in-form close or cancel control) go through `requestExit`.
+  2. Fix the stale form: when the user leaves the Fuel tab with a clean form, the form closes and the list is shown on return. Make sure the "form open" state is cleared on exit, and that the navigation `saveState` / `restoreState` configuration no longer restores an open form.
+  3. "Guardar" in the dialog runs the same validation and save path as the form's own save button. On validation failure stay in the form and cancel the navigation.
+  4. After saving or discarding, reopening the form shows empty fields with the app defaults (no leftover draft).
+  5. Rotation and background/foreground keep the open form and its draft intact.
+* **Acceptance Criteria:**
+  * Open form, switch tab, come back: list is shown, no form.
+  * Open form, type any value, switch tab: dialog appears; each of the three actions behaves as described in the matrix.
+  * Open form, type and erase a value, switch tab: no dialog.
+  * Back gesture follows the same rules.
+  * Existing save behavior is unchanged.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-003 — Apply to the new service (maintenance) form
+* **Status:** `BACKLOG`
+* **Objective:** Same behavior for the Maintenance screen, reusing the TASK-001 mechanism.
+* **Requirements:**
+  1. Wire the service form to the guard; all exit paths use `requestExit`.
+  2. Fix the stale form on tab return, same as TASK-002.
+  3. Confirm the dialog behaves identically (same component, same strings).
+  4. Check the optional fields specific to this form (service type, reminder by km or by date, notes) so that default values count as initial values and do not mark the form as modified.
+* **Acceptance Criteria:**
+  * Same acceptance checks as TASK-002, on the Maintenance tab.
+  * No duplicated guard logic between the two screens.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-004 — Regression check and version 0.2.2
+* **Status:** `BACKLOG`
+* **Objective:** Close the epic with a regression pass and the version bump.
+* **Requirements:**
+  1. Walk through the behavior matrix on both forms, with gesture navigation and 3-button navigation, and fix anything that deviates.
+  2. Check that the dialog looks right in dark and light and does not overlap the bottom navigation or system bars.
+  3. Check the rest of the tabs: switching between tabs without any form open must be unaffected (no dialog, no delay).
+  4. In the app module Gradle file, set `versionName` to `0.2.2` and increment `versionCode` by one over the current value. The About card must keep reading the version from `BuildConfig`, not from a hardcoded string.
+  5. Add a 0.2.2 entry to `agent/CHANGELOG.md` summarizing the fix.
+* **Acceptance Criteria:**
+  * All behavior-matrix cases pass on both forms.
+  * About shows `Vehicle Manager v0.2.2`.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
