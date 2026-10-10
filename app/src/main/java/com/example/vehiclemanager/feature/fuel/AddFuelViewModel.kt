@@ -8,6 +8,9 @@ import com.example.vehiclemanager.core.domain.FuelRecordRepository
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
+import com.example.vehiclemanager.core.ui.navigation.FormGuardHandler
+import com.example.vehiclemanager.core.ui.navigation.FormStateHolder
+import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,10 +30,30 @@ class AddFuelViewModel @Inject constructor(
     private val fuelRecordRepository: FuelRecordRepository,
     private val vehicleRepository: VehicleRepository,
     private val formDirtyStateHolder: FormDirtyStateHolder,
+    private val navigationGuard: NavigationGuard,
 ) : ViewModel() {
     private val dirtyToken = Any()
+    private val formStateHolder = FormStateHolder(FuelFormData())
+    private var onCloseFormListener: (() -> Unit)? = null
+
     private val _uiState = MutableStateFlow(AddFuelUiState())
     val uiState: StateFlow<AddFuelUiState> = _uiState.asStateFlow()
+
+    private val guardHandler = object : FormGuardHandler {
+        override fun isDirty(): Boolean = formStateHolder.isDirty
+
+        override fun onSave(onSuccess: () -> Unit, onFailure: () -> Unit) {
+            saveWithCallbacks(onSuccess, onFailure)
+        }
+
+        override fun onDiscard() {
+            resetForm()
+        }
+
+        override fun onCloseForm() {
+            onCloseFormListener?.invoke()
+        }
+    }
 
     private val activeVehicleRecords = activeVehicleRepository.activeVehicle
         .flatMapLatest { vehicle ->
@@ -39,11 +62,7 @@ class AddFuelViewModel @Inject constructor(
         }
 
     init {
-        viewModelScope.launch {
-            _uiState.collect { state ->
-                formDirtyStateHolder.setDirty(dirtyToken, state.isDirty)
-            }
-        }
+        navigationGuard.registerGuard(guardHandler)
         viewModelScope.launch {
             combine(
                 activeVehicleRepository.activeVehicle,
@@ -58,34 +77,34 @@ class AddFuelViewModel @Inject constructor(
                     }
                     _uiState.update { state ->
                         val shouldPrefillOdometer = !state.odometerManuallyEdited
+                        var form = state.form
+                        if (shouldPrefillOdometer && previousOdometer != null) {
+                            form = form.copy(odometerKm = previousOdometer.toString())
+                            formStateHolder.setInitial(form, updateCurrent = true)
+                            formDirtyStateHolder.setDirty(dirtyToken, false)
+                        }
                         state.copy(
                             isLoading = false,
                             activeVehicle = vehicle,
                             previousOdometerKm = previousOdometer,
-                            form = if (shouldPrefillOdometer && previousOdometer != null) {
-                                state.form.copy(odometerKm = previousOdometer.toString())
-                            } else {
-                                state.form
-                            },
+                            form = form,
                             noActiveVehicle = vehicle == null,
+                            isDirty = formStateHolder.isDirty,
                         )
                     }
                 }
         }
     }
 
+    fun setOnCloseFormListener(listener: (() -> Unit)?) {
+        onCloseFormListener = listener
+    }
+
     fun updateTimestamp(value: Long) = updateForm { copy(timestampMs = value) }
 
     fun updateOdometer(value: String) {
-        _uiState.update { state ->
-            state.copy(
-                form = state.form.copy(odometerKm = value),
-                odometerManuallyEdited = true,
-                isDirty = true,
-                errors = FuelValidationErrors(),
-                saveError = null,
-            )
-        }
+        _uiState.update { it.copy(odometerManuallyEdited = true) }
+        updateForm { copy(odometerKm = value) }
     }
 
     fun updateLiters(value: String) = updateFuelAmounts(lastEditedField = FuelAmountField.LITERS, value = value)
@@ -100,15 +119,22 @@ class AddFuelViewModel @Inject constructor(
 
     fun updateNotes(value: String) = updateForm { copy(notes = value) }
 
-    fun save() {
+    fun save() = saveWithCallbacks()
+
+    fun saveWithCallbacks(
+        onSuccess: (() -> Unit)? = null,
+        onFailure: (() -> Unit)? = null,
+    ) {
         val state = _uiState.value
         val errors = state.form.validate(state.previousOdometerKm)
         if (state.activeVehicle == null) {
             _uiState.update { it.copy(noActiveVehicle = true, saveError = "no_active_vehicle") }
+            onFailure?.invoke()
             return
         }
         if (errors.hasErrors) {
             _uiState.update { it.copy(errors = errors) }
+            onFailure?.invoke()
             return
         }
 
@@ -124,6 +150,7 @@ class AddFuelViewModel @Inject constructor(
                     ),
                 )
             }
+            onFailure?.invoke()
             return
         }
 
@@ -139,27 +166,43 @@ class AddFuelViewModel @Inject constructor(
             notes = state.form.notes.trim().ifEmpty { null },
         )
 
-        val currentState = _uiState.value
-        val activeVehicle = currentState.activeVehicle ?: return
+        val activeVehicle = state.activeVehicle
         _uiState.update { it.copy(isSaving = true, saveError = null) }
         viewModelScope.launch {
             runCatching {
                 fuelRecordRepository.insertFuelRecord(record)
-                // Actualizar el odometro del vehículo si el registro tiene un odometro mayor
                 if (record.odometerKm > activeVehicle.primaryOdometerKm) {
                     vehicleRepository.updateVehicle(
                         activeVehicle.copy(primaryOdometerKm = record.odometerKm),
                     )
                 }
-            }.onSuccess { _uiState.update { it.copy(isSaving = false, saveCompleted = true) } }
-                .onFailure { throwable ->
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            saveError = throwable.message ?: "save_failed",
-                        )
-                    }
+            }.onSuccess {
+                resetForm()
+                _uiState.update { it.copy(isSaving = false, saveCompleted = true) }
+                onSuccess?.invoke()
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        saveError = throwable.message ?: "save_failed",
+                    )
                 }
+                onFailure?.invoke()
+            }
+        }
+    }
+
+    fun resetForm() {
+        formStateHolder.reset()
+        formDirtyStateHolder.setDirty(dirtyToken, false)
+        _uiState.update { state ->
+            state.copy(
+                form = formStateHolder.currentValue,
+                isDirty = false,
+                errors = FuelValidationErrors(),
+                saveError = null,
+                fuelAmountsEdited = emptySet(),
+            )
         }
     }
 
@@ -168,29 +211,26 @@ class AddFuelViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        navigationGuard.unregisterGuard(guardHandler)
         formDirtyStateHolder.setDirty(dirtyToken, false)
         super.onCleared()
     }
 
     private fun updateForm(transform: FuelFormData.() -> FuelFormData) {
+        val updated = formStateHolder.currentValue.transform()
+        formStateHolder.update(updated)
+        val isDirty = formStateHolder.isDirty
+        formDirtyStateHolder.setDirty(dirtyToken, isDirty)
         _uiState.update { state ->
             state.copy(
-                form = state.form.transform(),
-                isDirty = true,
+                form = updated,
+                isDirty = isDirty,
                 errors = FuelValidationErrors(),
                 saveError = null,
             )
         }
     }
 
-    /**
-     * Dynamic refuel calculator: whenever any two of the three amount fields
-     * (liters, price per liter, total cost) hold valid positive values entered
-     * by the user, the missing third field is computed automatically.
-     *
-     * Only user edits feed the calculation, so an auto-filled value never
-     * re-triggers it and no circular update loop is possible.
-     */
     private fun updateFuelAmounts(lastEditedField: FuelAmountField, value: String) {
         _uiState.update { state ->
             val edited = state.fuelAmountsEdited + lastEditedField
@@ -224,7 +264,6 @@ class AddFuelViewModel @Inject constructor(
                     null -> form
                 }
             } else {
-                // Con menos de dos entradas válidas, el campo autocalculado se limpia.
                 val stale = form.autoFilledField
                 if (stale != null && stale != lastEditedField) {
                     form = when (stale) {
@@ -237,10 +276,14 @@ class AddFuelViewModel @Inject constructor(
                 }
             }
 
+            formStateHolder.update(form)
+            val isDirty = formStateHolder.isDirty
+            formDirtyStateHolder.setDirty(dirtyToken, isDirty)
+
             state.copy(
                 form = form,
                 fuelAmountsEdited = edited,
-                isDirty = true,
+                isDirty = isDirty,
                 errors = FuelValidationErrors(),
                 saveError = null,
             )

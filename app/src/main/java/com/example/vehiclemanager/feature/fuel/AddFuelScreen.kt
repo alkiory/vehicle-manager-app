@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,13 @@ fun AddFuelScreen(
     val uiState by viewModel.uiState.collectAsState()
     val unsavedChangesState = rememberUnsavedChangesState()
 
+    DisposableEffect(viewModel) {
+        viewModel.setOnCloseFormListener(onNavigateBack)
+        onDispose {
+            viewModel.setOnCloseFormListener(null)
+        }
+    }
+
     LaunchedEffect(uiState.saveCompleted) {
         if (uiState.saveCompleted) {
             viewModel.consumeSaveCompleted()
@@ -60,7 +68,11 @@ fun AddFuelScreen(
     UnsavedChangesGuard(
         state = unsavedChangesState,
         isDirty = uiState.isDirty && !uiState.isSaving,
-        onDiscard = onNavigateBack,
+        onSave = viewModel::save,
+        onDiscard = {
+            viewModel.resetForm()
+            onNavigateBack()
+        },
     )
 
     VehicleManagerScreen(
@@ -69,7 +81,12 @@ fun AddFuelScreen(
                 title = "Nuevo repostaje",
                 actions = {
                     TextButton(onClick = {
-                        if (uiState.isDirty) unsavedChangesState.requestConfirmation() else onNavigateBack()
+                        if (uiState.isDirty) {
+                            unsavedChangesState.requestConfirmation()
+                        } else {
+                            viewModel.resetForm()
+                            onNavigateBack()
+                        }
                     }) {
                         Text(text = "Cancelar")
                     }

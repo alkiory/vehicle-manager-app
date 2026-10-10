@@ -7,6 +7,7 @@ import com.example.vehiclemanager.core.domain.FuelType
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
+import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import com.example.vehiclemanager.feature.fuel.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,7 @@ class AddFuelViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val dirtyStateHolder = FormDirtyStateHolder()
+    private val navigationGuard = NavigationGuard()
 
     @Test
     fun computesTotalFromLitersAndPrice() = runTest {
@@ -125,6 +127,31 @@ class AddFuelViewModelTest {
         assertTrue(viewModel.uiState.value.isDirty)
     }
 
+    @Test
+    fun revertingEditsBackToInitialReturnsToClean() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDirty)
+        viewModel.updateLiters("10")
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.updateLiters("")
+        assertFalse(viewModel.uiState.value.isDirty)
+    }
+
+    @Test
+    fun resetFormClearsDirtyState() = runTest {
+        val viewModel = createViewModel()
+
+        viewModel.updateLiters("10")
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.resetForm()
+        assertFalse(viewModel.uiState.value.isDirty)
+        assertEquals("", viewModel.uiState.value.form.liters)
+    }
+
     private fun createViewModel(
         recordRepository: FakeFuelRecordRepository = FakeFuelRecordRepository(),
     ): AddFuelViewModel = AddFuelViewModel(
@@ -132,6 +159,7 @@ class AddFuelViewModelTest {
         fuelRecordRepository = recordRepository,
         vehicleRepository = FakeVehicleRepository(),
         formDirtyStateHolder = dirtyStateHolder,
+        navigationGuard = navigationGuard,
     )
 
     private fun vehicle() = Vehicle(

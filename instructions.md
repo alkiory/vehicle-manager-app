@@ -817,7 +817,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-002 — Apply to the new fuel entry form
-* **Status:** `READY`
+* **Status:** `🟢 DONE`
 * **Objective:** Fix the stale form and add the unsaved-changes prompt in the fuel screen.
 * **Requirements:**
   1. Wire the form to the guard from TASK-001: all exit paths (bottom-nav tab change, system back / gesture, in-form close or cancel control) go through `requestExit`.
@@ -834,7 +834,7 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
 
 #### TASK-003 — Apply to the new service (maintenance) form
-* **Status:** `BACKLOG`
+* **Status:** `READY`
 * **Objective:** Same behavior for the Maintenance screen, reusing the TASK-001 mechanism.
 * **Requirements:**
   1. Wire the service form to the guard; all exit paths use `requestExit`.
