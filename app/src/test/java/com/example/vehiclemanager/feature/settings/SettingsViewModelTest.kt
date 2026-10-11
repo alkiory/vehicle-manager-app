@@ -4,6 +4,8 @@ import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
+import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
+import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +18,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -25,6 +31,8 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeThemeRepo: FakeThemePreferenceRepository
     private lateinit var fakeReminderRepo: FakeReminderPreferencesRepository
+    private lateinit var navigationGuard: NavigationGuard
+    private lateinit var formDirtyStateHolder: FormDirtyStateHolder
     private lateinit var viewModel: SettingsViewModel
 
     @Before
@@ -32,7 +40,14 @@ class SettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeThemeRepo = FakeThemePreferenceRepository()
         fakeReminderRepo = FakeReminderPreferencesRepository()
-        viewModel = SettingsViewModel(fakeThemeRepo, fakeReminderRepo)
+        navigationGuard = NavigationGuard()
+        formDirtyStateHolder = FormDirtyStateHolder()
+        viewModel = SettingsViewModel(
+            themePreferenceRepository = fakeThemeRepo,
+            reminderPreferencesRepository = fakeReminderRepo,
+            navigationGuard = navigationGuard,
+            formDirtyStateHolder = formDirtyStateHolder,
+        )
     }
 
     @After
@@ -41,27 +56,112 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setAdvanceDistanceKm_updatesRepositoryAndState() = runTest {
-        viewModel.setAdvanceDistanceKm(120L)
+    fun initialState_loadsFromRepository_isCleanAndValid() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(120L, fakeReminderRepo.currentPrefs.advanceDistanceKm)
+        val state = viewModel.uiState.value
+        assertFalse(state.isDirty)
+        assertTrue(state.isValid)
+        assertEquals("500", state.draft.advanceDistanceKmText)
+        assertEquals("7", state.draft.advanceDaysText)
+        assertEquals(ThemeMode.SYSTEM, state.draft.themeMode)
     }
 
     @Test
-    fun setAdvanceDays_updatesRepositoryAndState() = runTest {
-        viewModel.setAdvanceDays(14)
+    fun editingDraft_marksDirty_andEnablesSaveWhenValid() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(14, fakeReminderRepo.currentPrefs.advanceDays)
+        viewModel.setAdvanceDistanceKmText("600")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isDirty)
+        assertTrue(state.isValid)
+        assertEquals("600", state.draft.advanceDistanceKmText)
     }
 
     @Test
-    fun setThemeMode_updatesRepositoryAndState() = runTest {
+    fun invalidInputs_showValidationErrors_andDisableSave() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAdvanceDistanceKmText("0")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isDirty)
+        assertFalse(state.isValid)
+        assertNotNull(state.validationErrors.advanceDistanceError)
+
+        viewModel.setAdvanceDaysText("")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedState = viewModel.uiState.value
+        assertFalse(updatedState.isValid)
+        assertNotNull(updatedState.validationErrors.advanceDaysError)
+    }
+
+    @Test
+    fun saveSettings_persistsToRepositories_resetsDirtyAndShowsFeedback() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAdvanceDistanceKmText("800")
+        viewModel.setAdvanceDaysText("14")
         viewModel.setThemeMode(ThemeMode.DARK)
+        viewModel.setTirePressureNotificationsEnabled(true)
         testDispatcher.scheduler.advanceUntilIdle()
 
+        var successCallbackCalled = false
+        viewModel.saveSettings(onSuccess = { successCallbackCalled = true })
+        testDispatcher.scheduler.advanceTimeBy(100)
+
+        assertTrue(successCallbackCalled)
+        assertEquals(800L, fakeReminderRepo.currentPrefs.advanceDistanceKm)
+        assertEquals(14, fakeReminderRepo.currentPrefs.advanceDays)
         assertEquals(ThemeMode.DARK, fakeThemeRepo.themeMode.value)
+        assertTrue(fakeReminderRepo.currentPrefs.tirePressureNotificationsEnabled)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isDirty)
+        assertEquals("Cambios guardados", state.saveSuccessMessage)
+
+        testDispatcher.scheduler.advanceTimeBy(3000)
+        assertNull(viewModel.uiState.value.saveSuccessMessage)
+    }
+
+    @Test
+    fun resetDraft_discardsEdits_restoresPersistedValues() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAdvanceDistanceKmText("9999")
+        viewModel.setThemeMode(ThemeMode.LIGHT)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isDirty)
+
+        viewModel.resetDraft()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isDirty)
+        assertEquals("500", state.draft.advanceDistanceKmText)
+        assertEquals(ThemeMode.SYSTEM, state.draft.themeMode)
+    }
+
+    @Test
+    fun repositoryRoundTrip_savesAndReadsBackUpdatedPreferences() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAdvanceDistanceKmText("1200")
+        viewModel.setNotificationTime(10, 30)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.saveSettings()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedPrefs = fakeReminderRepo.currentPrefs
+        assertEquals(1200L, updatedPrefs.advanceDistanceKm)
+        assertEquals(10, updatedPrefs.notificationTimeHours)
+        assertEquals(30, updatedPrefs.notificationTimeMinutes)
     }
 }
 
@@ -101,7 +201,7 @@ private class FakeReminderPreferencesRepository : ReminderPreferencesRepository 
     override suspend fun setNotificationTime(hours: Int, minutes: Int) {
         _reminderPreferences.value = _reminderPreferences.value.copy(
             notificationTimeHours = hours,
-            notificationTimeMinutes = minutes
+            notificationTimeMinutes = minutes,
         )
     }
 

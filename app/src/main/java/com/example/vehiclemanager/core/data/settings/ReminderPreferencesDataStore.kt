@@ -89,4 +89,17 @@ class ReminderPreferencesDataStore @Inject constructor(
             preferences[PreferencesKeys.ONBOARDING_COMPLETED] = completed
         }
     }
+
+    suspend fun updateAll(preferences: ReminderPreferences) {
+        context.reminderPreferencesDataStore.edit { prefs ->
+            prefs[PreferencesKeys.ADVANCE_DISTANCE_KM] = preferences.advanceDistanceKm
+            prefs[PreferencesKeys.ADVANCE_DAYS] = preferences.advanceDays
+            prefs[PreferencesKeys.NOTIFICATION_TIME_HOURS] = preferences.notificationTimeHours
+            prefs[PreferencesKeys.NOTIFICATION_TIME_MINUTES] = preferences.notificationTimeMinutes
+            prefs[PreferencesKeys.FUEL_NOTIFICATIONS_ENABLED] = preferences.fuelNotificationsEnabled
+            prefs[PreferencesKeys.TIRE_PRESSURE_NOTIFICATIONS_ENABLED] = preferences.tirePressureNotificationsEnabled
+            prefs[PreferencesKeys.VIBRATE_ON_NOTIFICATION] = preferences.vibrateOnNotification
+            prefs[PreferencesKeys.ONBOARDING_COMPLETED] = preferences.onboardingCompleted
+        }
+    }
 }

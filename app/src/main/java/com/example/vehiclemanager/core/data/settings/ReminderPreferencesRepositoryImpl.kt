@@ -42,12 +42,6 @@ class ReminderPreferencesRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateAll(preferences: ReminderPreferences) {
-        dataStore.updateAdvanceDistanceKm(preferences.advanceDistanceKm)
-        dataStore.updateAdvanceDays(preferences.advanceDays)
-        dataStore.updateNotificationTime(preferences.notificationTimeHours, preferences.notificationTimeMinutes)
-        dataStore.updateFuelNotificationsEnabled(preferences.fuelNotificationsEnabled)
-        dataStore.updateTirePressureNotificationsEnabled(preferences.tirePressureNotificationsEnabled)
-        dataStore.updateVibrateOnNotification(preferences.vibrateOnNotification)
-        dataStore.updateOnboardingCompleted(preferences.onboardingCompleted)
+        dataStore.updateAll(preferences)
     }
 }

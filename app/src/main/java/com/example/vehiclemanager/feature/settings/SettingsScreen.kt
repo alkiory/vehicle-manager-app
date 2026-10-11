@@ -1,17 +1,22 @@
 package com.example.vehiclemanager.feature.settings
 
+import android.app.TimePickerDialog
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,7 +27,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
@@ -35,27 +39,25 @@ import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -89,6 +91,7 @@ fun SettingsScreen(
         onDispose {
             backupViewModel.consumeImportCompleted()
             backupViewModel.consumeError()
+            viewModel.consumeSaveSuccessMessage()
         }
     }
 
@@ -127,147 +130,205 @@ fun SettingsScreen(
     VehicleManagerScreen(
         topBar = { VehicleManagerAppBar(title = "Ajustes") },
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppTheme.gradients.screenBackground)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .background(AppTheme.gradients.screenBackground),
         ) {
-            // Eyebrow + headline
-            Text(
-                text = "CONFIGURACIÓN",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "Ajustes generales",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-
-            // Appearance section
-            SettingsCard(title = "Apariencia", icon = Icons.Default.Settings) {
-                ThemeModeSelector(
-                    currentMode = uiState.themeMode,
-                    onSelectMode = viewModel::setThemeMode,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            }
-
-            // Reminder settings section
-            SettingsCard(title = stringResource(R.string.reminder_settings_title), icon = Icons.Default.Notifications) {
-                val prefs = uiState.reminderPreferences
-
-                // Advance distance input
-                ReminderNumericInputField(
-                    value = prefs.advanceDistanceKm,
-                    onValuePersisted = viewModel::setAdvanceDistanceKm,
-                    label = stringResource(R.string.reminder_advance_distance_label),
-                    suffix = stringResource(R.string.reminder_advance_distance_unit),
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-
-                // Advance days input
-                ReminderNumericInputField(
-                    value = prefs.advanceDays.toLong(),
-                    onValuePersisted = { daysLong -> viewModel.setAdvanceDays(daysLong.toInt()) },
-                    label = stringResource(R.string.reminder_advance_days_label),
-                    suffix = stringResource(R.string.reminder_advance_days_unit),
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-
-                // Notification time
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 100.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                // Eyebrow + headline
                 Text(
-                    text = stringResource(R.string.reminder_notification_time_label),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 16.dp),
+                    text = "CONFIGURACIÓN",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TimePickerFieldDeckard(
-                    initialHours = prefs.notificationTimeHours,
-                    initialMinutes = prefs.notificationTimeMinutes,
-                    onTimeSelected = { hours, minutes ->
-                        viewModel.setNotificationTime(hours, minutes)
-                    },
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-
-                // Subtitle for notifications group
                 Text(
-                    text = "Notificaciones",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                    text = "Ajustes generales",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
                 )
 
-                // Notification Toggles
-                ReminderToggleRow(
-                    icon = Icons.Default.Notifications,
-                    label = stringResource(R.string.reminder_fuel_enabled),
-                    checked = prefs.fuelNotificationsEnabled,
-                    onCheckedChange = { viewModel.setFuelNotificationsEnabled(it) },
-                )
-
-                ReminderToggleRow(
-                    icon = Icons.Default.Notifications,
-                    label = stringResource(R.string.reminder_tire_pressure_enabled),
-                    checked = prefs.tirePressureNotificationsEnabled,
-                    onCheckedChange = { viewModel.setTirePressureNotificationsEnabled(it) },
-                )
-
-                ReminderToggleRow(
-                    icon = Icons.Default.Vibration,
-                    label = stringResource(R.string.reminder_vibrate_enabled),
-                    checked = prefs.vibrateOnNotification,
-                    onCheckedChange = { viewModel.setVibrateOnNotification(it) },
-                )
-            }
-
-            // Data management section
-            SettingsCard(title = stringResource(R.string.data_management_title), icon = Icons.Default.Backup) {
-                BackupSection(
-                    isBusy = backupState.isBusy,
-                    onExport = backupViewModel::exportBackup,
-                    onImport = {
-                        openBackupLauncher.launch(arrayOf("application/json", "text/json"))
-                    },
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-
-            // Backup status feedback
-            backupState.let { state ->
-                when {
-                    state.importCompleted -> StatusRow(
-                        text = stringResource(R.string.backup_imported),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        icon = Icons.Default.CheckCircle,
+                // Appearance section
+                SettingsCard(title = "Apariencia", icon = Icons.Default.Settings) {
+                    ThemeModeSelector(
+                        currentMode = uiState.draft.themeMode,
+                        onSelectMode = viewModel::setThemeMode,
+                        modifier = Modifier.padding(top = 12.dp),
                     )
-                    state.error != null -> Text(
-                        text = stringResource(R.string.backup_error, state.error.orEmpty()),
-                        color = MaterialTheme.colorScheme.error,
+                }
+
+                // Reminder settings section
+                SettingsCard(title = stringResource(R.string.reminder_settings_title), icon = Icons.Default.Notifications) {
+                    val draft = uiState.draft
+                    val errors = uiState.validationErrors
+
+                    // Advance distance input
+                    ReminderNumericInputField(
+                        valueText = draft.advanceDistanceKmText,
+                        onValueChange = viewModel::setAdvanceDistanceKmText,
+                        label = stringResource(R.string.reminder_advance_distance_label),
+                        suffix = stringResource(R.string.reminder_advance_distance_unit),
+                        errorMessage = errors.advanceDistanceError,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+
+                    // Advance days input
+                    ReminderNumericInputField(
+                        valueText = draft.advanceDaysText,
+                        onValueChange = viewModel::setAdvanceDaysText,
+                        label = stringResource(R.string.reminder_advance_days_label),
+                        suffix = stringResource(R.string.reminder_advance_days_unit),
+                        errorMessage = errors.advanceDaysError,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+
+                    // Notification time
+                    Text(
+                        text = stringResource(R.string.reminder_notification_time_label),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                    TimePickerFieldDeckard(
+                        initialHours = draft.notificationTimeHours,
+                        initialMinutes = draft.notificationTimeMinutes,
+                        onTimeSelected = viewModel::setNotificationTime,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+
+                    // Subtitle for notifications group
+                    Text(
+                        text = "Notificaciones",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                    )
+
+                    // Notification Toggles
+                    ReminderToggleRow(
+                        icon = Icons.Default.Notifications,
+                        label = stringResource(R.string.reminder_fuel_enabled),
+                        checked = draft.fuelNotificationsEnabled,
+                        onCheckedChange = viewModel::setFuelNotificationsEnabled,
+                    )
+
+                    ReminderToggleRow(
+                        icon = Icons.Default.Notifications,
+                        label = stringResource(R.string.reminder_tire_pressure_enabled),
+                        checked = draft.tirePressureNotificationsEnabled,
+                        onCheckedChange = viewModel::setTirePressureNotificationsEnabled,
+                    )
+
+                    ReminderToggleRow(
+                        icon = Icons.Default.Vibration,
+                        label = stringResource(R.string.reminder_vibrate_enabled),
+                        checked = draft.vibrateOnNotification,
+                        onCheckedChange = viewModel::setVibrateOnNotification,
+                    )
+                }
+
+                // Data management section
+                SettingsCard(title = stringResource(R.string.data_management_title), icon = Icons.Default.Backup) {
+                    BackupSection(
+                        isBusy = backupState.isBusy,
+                        onExport = backupViewModel::exportBackup,
+                        onImport = {
+                            openBackupLauncher.launch(arrayOf("application/json", "text/json"))
+                        },
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+
+                // Backup status feedback
+                backupState.let { state ->
+                    when {
+                        state.importCompleted -> StatusRow(
+                            text = stringResource(R.string.backup_imported),
+                            color = MaterialTheme.colorScheme.tertiary,
+                            icon = Icons.Default.CheckCircle,
+                        )
+                        state.error != null -> Text(
+                            text = stringResource(R.string.backup_error, state.error.orEmpty()),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+
+                // About section
+                SettingsCard(title = "Acerca de", icon = Icons.Default.Info) {
+                    Text(
+                        text = "Vehicle Manager v${BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Text(
+                        text = "Gestión de vehículos, combustible y mantenimiento.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
 
-            // About section
-            SettingsCard(title = "Acerca de", icon = Icons.Default.Info) {
-                Text(
-                    text = "Vehicle Manager v${BuildConfig.VERSION_NAME}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Text(
-                    text = "Gestión de vehículos, combustible y mantenimiento.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            // Sticky Bottom Save Bar
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                ) {
+                    uiState.saveSuccessMessage?.let { msg ->
+                        StatusRow(
+                            text = msg,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            icon = Icons.Default.CheckCircle,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    uiState.saveErrorMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    Button(
+                        onClick = { viewModel.saveSettings() },
+                        enabled = uiState.isDirty && uiState.isValid && !uiState.isSaving,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = "Guardar cambios de ajustes" },
+                    ) {
+                        if (uiState.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(text = "Guardar cambios")
+                    }
+                }
             }
         }
     }
@@ -275,45 +336,31 @@ fun SettingsScreen(
 
 @Composable
 private fun ReminderNumericInputField(
-    value: Long,
-    onValuePersisted: (Long) -> Unit,
+    valueText: String,
+    onValueChange: (String) -> Unit,
     label: String,
     suffix: String,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    var textState by remember(value) { mutableStateOf(if (value > 0) value.toString() else "") }
-    var isFocused by remember { mutableStateOf(false) }
-
-    LaunchedEffect(value) {
-        if (!isFocused) {
-            textState = if (value > 0) value.toString() else ""
-        }
-    }
-
     OutlinedTextField(
-        value = textState,
+        value = valueText,
         onValueChange = { input ->
             val digitsOnly = input.filter { it.isDigit() }.take(6)
-            textState = digitsOnly
-            val parsed = digitsOnly.toLongOrNull() ?: 0L
-            onValuePersisted(parsed)
+            onValueChange(digitsOnly)
         },
         label = { Text(text = label) },
         suffix = { Text(text = suffix) },
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { msg ->
+            { Text(text = msg, color = MaterialTheme.colorScheme.error) }
+        },
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Number,
             imeAction = ImeAction.Done,
         ),
         singleLine = true,
-        modifier = modifier
-            .fillMaxWidth()
-            .onFocusChanged { focusState ->
-                isFocused = focusState.isFocused
-                if (!focusState.isFocused) {
-                    val parsed = textState.toLongOrNull() ?: 0L
-                    onValuePersisted(parsed)
-                }
-            },
+        modifier = modifier.fillMaxWidth(),
     )
 }
 
@@ -465,21 +512,44 @@ private fun TimePickerFieldDeckard(
     onTimeSelected: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedTextField(
-        value = String.format("%02d:%02d", initialHours, initialMinutes),
-        onValueChange = {},
-        label = { Text(text = stringResource(R.string.reminder_notification_time_label)) },
-        readOnly = true,
-        modifier = modifier.fillMaxWidth(),
-        trailingIcon = {
-            Icon(
-                imageVector = Icons.Default.Schedule,
-                contentDescription = "Seleccionar hora",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        },
-    )
+    val context = LocalContext.current
+    val timePickerDialog = remember(context, initialHours, initialMinutes) {
+        TimePickerDialog(
+            context,
+            { _, hourOfDay, minute -> onTimeSelected(hourOfDay, minute) },
+            initialHours,
+            initialMinutes,
+            true,
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { timePickerDialog.show() },
+    ) {
+        OutlinedTextField(
+            value = String.format("%02d:%02d", initialHours, initialMinutes),
+            onValueChange = {},
+            label = { Text(text = stringResource(R.string.reminder_notification_time_label)) },
+            readOnly = true,
+            enabled = false,
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.primary,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = "Seleccionar hora",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+        )
+    }
 }
 
 @Composable
