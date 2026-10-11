@@ -859,3 +859,156 @@ $$\text{BACKLOG} \longrightarrow \text{READY} \longrightarrow \text{IN\_PROGRESS
   * All behavior-matrix cases pass on both forms.
   * About shows `Vehicle Manager v0.2.2`.
 * **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+### EPIC-022 — Persistent Settings, Reliable Notifications, Statistics Clarity and Changelog (v0.3.0)
+
+**Objective:** Fix four trust problems found while testing the installed APK: (1) Settings edits are shown while navigating but are lost when the app is closed; (2) the app never asks for notification permission and there is no way to know whether reminders will actually fire; (3) Statistics shows numbers without units or explanation, and some values do not match their calculation; (4) there is no changelog for traceability (the public landing page links to it).
+
+**Global constraints:**
+- Code, identifiers and comments in English. User-facing strings stay in Spanish.
+- No Room schema changes or migrations. If one turns out to be unavoidable, stop and report instead of doing it.
+- Reuse the existing `UnsavedChangesGuard`, the 3-second feedback mechanism and the theme tokens (`MaterialTheme.colorScheme`, `LocalAppSemanticColors`, `LocalAppGradients`). No hardcoded colors.
+- Keep the current decimal separator convention. Only fix units, labels and rounding.
+- Root causes below are hypotheses. Inspect the code and confirm before fixing; record confirmed causes in `agent/MEMORY.md`.
+- Execute one task at a time. Do not start the next task without instruction.
+
+**Out of scope:** per-vehicle accent color, redesign of any screen not named here, exporting settings inside the backup.
+
+---
+
+#### TASK-001 — Persist settings with an explicit "Guardar cambios" button
+* **Status:** `READY`
+* **Objective:** Settings edits must survive closing and reopening the app, and must only be applied when the user saves.
+* **Bug evidence:** In Settings the user edits an input (e.g. antelación distance), switches tab and the edited value is still visible, but after leaving the app and coming back the default values appear again. The edit lived only in in-memory state.
+* **Requirements:**
+  1. Find where settings are stored (DataStore, SharedPreferences, Room or none) and where the Settings screen state comes from. Probable causes (verify): the screen binds inputs to a ViewModel `MutableStateFlow` that is never written to storage; or storage is written but the defaults are re-applied on app start and overwrite the stored values; or the write happens on a scope that is cancelled.
+  2. Settings fields in scope: antelación distance (km), antelación days, best time to notify, the three toggles (repostaje, presión de neumáticos, vibrar al notificar) and the app theme (Sistema / Claro / Oscuro). Export / Import backup are immediate actions and are not part of the draft.
+  3. Introduce a draft model: the screen edits a draft copy; the persisted settings change only when the user taps "Guardar cambios". Defaults apply only when nothing is stored yet (first run); never overwrite stored values with defaults at startup.
+  4. Add a "Guardar cambios" button at the bottom of the Settings content, always reachable above the bottom navigation (sticky, with correct insets and IME padding). It is enabled only when the draft differs from the persisted values and all fields are valid (numbers > 0 where required, valid time). Invalid fields show an inline error and keep the button disabled.
+  5. On success: write to storage (suspend, awaited), show the existing 3-second success message ("Cambios guardados"), and the button goes back to disabled.
+  6. Reuse `UnsavedChangesGuard`: leaving Settings (tab change, back) with a modified draft shows the same dialog (Guardar / Descartar / Seguir editando). A clean draft leaves silently.
+  7. Rotation keeps the draft. Persisted values are loaded once at screen creation and re-synced only when the draft is clean.
+  8. The theme selector is part of the draft like the rest, and applies when saved.
+  9. Unit tests: repository round trip (write, read back, defaults only when empty), draft dirty/clean transitions, validation rules.
+* **Acceptance Criteria:**
+  * Edit values, save, kill the app, reopen: the saved values are shown.
+  * Edit values without saving, switch tab: the guard dialog appears.
+  * Save button disabled when nothing changed or when a field is invalid.
+  * Fresh install shows the defaults (500 km is only a hint; keep the current default values).
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-002 — Notification permission flow and visible notification status
+* **Status:** `BACKLOG`
+* **Objective:** The app must request the notification permission, handle denial correctly and let the user check that notifications work.
+* **Bug evidence:** After installing the APK the app never asks for notification permission.
+* **Requirements:**
+  1. Declare `POST_NOTIFICATIONS` in the manifest (required on Android 13 / API 33+). Create the notification channels at app start (required from API 26).
+  2. First-launch request: on API 33+, if the permission is not granted and has not been asked before, show a short rationale dialog in Spanish ("Vehicle Manager te avisa de repostajes y servicios próximos. ¿Activar notificaciones?") with "Activar" (launches the system permission request) and "Ahora no". Persist that it was asked so it is not repeated automatically.
+  3. Contextual request: when the user turns ON a notification toggle in Settings, or saves with a notification enabled, and the permission is missing, request it.
+  4. Denied permanently (the system no longer shows the dialog): the "Permitir" action opens the app notification settings (`Settings.ACTION_APP_NOTIFICATION_SETTINGS`).
+  5. Add a notification status card inside the "Recordatorios" block of Settings showing: permission state ("Activadas" / "Desactivadas"), a "Permitir" button when off, and an "Enviar notificación de prueba" button that posts a real notification through the same channel and style used for reminders (it triggers the permission request if missing). Also detect app-level notifications disabled (`areNotificationsEnabled`) and a channel set to importance NONE.
+  6. Re-evaluate the state on `ON_RESUME`, since the user may change it in system settings.
+  7. Tapping a notification opens the app (PendingIntent with `FLAG_IMMUTABLE`) on the relevant tab.
+  8. The notification small icon must be a monochrome vector; text in Spanish.
+  9. Unit tests for the permission-state logic (API levels, asked flag, permanent denial) behind an interface so it is testable.
+* **Acceptance Criteria:**
+  * Fresh install on Android 13+ shows the rationale and then the system permission dialog.
+  * Test notification arrives with the permission granted; with it denied the card explains how to enable it.
+  * No crash on API below 33.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-003 — Reminder scheduling audit and reliability
+* **Status:** `BACKLOG`
+* **Objective:** Guarantee, by design and by tests, that reminders fire when their conditions are met.
+* **Requirements:**
+  1. Audit and document in `agent/MEMORY.md` ("Reminder pipeline"): what schedules reminders today (WorkManager, AlarmManager or nothing), what triggers a date-based reminder, what triggers a km-based reminder, where lead time (days, km) and best notification time are read from, and the gaps found.
+  2. Implement or fix a single `ReminderScheduler`: one daily check at the configured "Mejor hora para notificar" (default 09:00), reading the persisted settings from TASK-001. Prefer WorkManager (no special permission). Do not add `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` unless the current implementation already depends on them; timing is approximate and may drift a few minutes under Doze.
+  3. Reschedule when settings are saved, after device reboot, after app update and when the time zone or system time changes.
+  4. Put the due-evaluation in a pure function (inputs: reminders, current odometer, today, lead days, lead km; output: notifications to show) with unit tests: due by date, due by km, not yet due, already notified (no duplicate for the same reminder on the same day), toggles off.
+  5. Respect the toggles: fuel notification, tire pressure notification. Vibrate toggle: Android 8+ cannot change a channel's vibration after creation, so use two channels (vibrating and silent) and choose by the toggle.
+  6. If the permission is missing, skip posting without crashing and keep the status card (TASK-002) accurate.
+  7. In the status card show "Próxima comprobación: <date and time>" read from the scheduled work (when the API exposes it), so the user can see the scheduler is armed. If the app is subject to battery optimization, show a dismissible hint with a button that opens the system battery settings. Do not request the exemption automatically.
+  8. Add a short info text under the lead-time inputs explaining how reminders are evaluated (date-based on the due date minus lead days; km-based when the odometer gets within the lead distance), matching what the code really does.
+* **Acceptance Criteria:**
+  * Unit tests cover every case in requirement 4.
+  * Saving settings changes the next scheduled check; the status card shows it.
+  * After reboot the check is still scheduled.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-004 — Statistics calculation audit, units and shared formatting
+* **Status:** `BACKLOG`
+* **Objective:** Every number in Statistics (and the Dashboard values derived from the same data) must match a documented formula, be rounded correctly and carry its unit.
+* **Findings from screenshots (verify each one):**
+  * Statistics shows cost per km as `16.34` (with data: 236.63 total, 1448 km) while the real value is 0.1634 €/km. It is expressed in cents without a unit. Earlier data (152.00 total, 834 km) showed `18.22`, the same issue.
+  * Dashboard shows `0.16 €/km` captioned "Basado en historial de combustible" while Statistics shows a total-cost-based value under the same name. With the earlier data a fuel-only value would be 140 / 834 = 0.168, which should display as 0.17, not 0.16. Two different metrics share one name, and one of them may be truncated instead of rounded.
+  * "Gasto mensual medio" shows `118.31`, but 236.63 / 2 months = 118.315, which rounds (HALF_UP) to 118.32. This is a floating-point artifact. Money must not be summed and divided as raw `Double`.
+  * Fuel price shows `¢/L` on the Dashboard history; it must be `€/L`.
+  * No currency symbol anywhere in Statistics.
+* **Requirements:**
+  1. Document the formulas actually implemented, then align them to these definitions (confirm "distance" against the code and document it):
+    - Period filter: 30 días = last 30 days, 6 meses = last 6 months, Este año = from Jan 1, Todo = all records.
+    - Fuel total = sum of fuel entry costs in the period. Maintenance total = sum of service costs. Total cost = fuel + maintenance.
+    - Distance = highest odometer value minus lowest odometer value among the records in the period of the active vehicle.
+    - Cost per km = total cost / distance, in €/km, null when distance is 0.
+    - Average monthly cost = total cost / number of calendar months from the first to the last month with records in the period (inclusive).
+    - Monthly price (chart) = weighted average: total fuel cost / total liters of that month. Not the simple mean of entry prices.
+  2. All statistics must use only the active vehicle's records. Verify and add a test with two vehicles.
+  3. Money math with `BigDecimal` (`BigDecimal.valueOf` per Double value, then sum), rounding `RoundingMode.HALF_UP`, scale 2. Never truncate. Do not migrate the database.
+  4. Make Dashboard and Statistics use the same cost-per-km use case. The Dashboard keeps the label "Coste por kilómetro" with the total-based definition for the whole history, and its caption must say so (replace "Basado en historial de combustible").
+  5. Create one `Formatters` object (money with €, price per liter `€/L`, cost per km `€/km`, distance `km`, monthly `€/mes`) and replace ad-hoc formatting across Statistics, Dashboard and fuel history. Fix the `¢/L` unit everywhere.
+  6. Edge cases: no records, one record, distance 0, a single month. Return null/empty results; never show `Infinity`, `NaN` or `0.00 €/km` for missing data.
+  7. Unit tests with this fixture (from the screenshots): September has fuel 50.00 € / 28.57 L and 30.00 € / 16.04 L plus maintenance 12.00 €; October has fuel 140.00 € in total and maintenance 4.63 €. Expected: monthly totals [92.00, 144.63]; fuel 220.00; maintenance 16.63; total 236.63; average monthly 118.32; September price 1.79 €/L (weighted: 80 / 44.61), which differs from the simple mean 1.81; with distance 1448 km, cost per km 0.16 €/km.
+* **Acceptance Criteria:**
+  * All the findings above are fixed or explained in `agent/MEMORY.md` if they turn out not to apply.
+  * Tests above pass; the same inputs always give the same text on Dashboard and Statistics.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-005 — Statistics UI: explain every value
+* **Status:** `BACKLOG`
+* **Objective:** The user must know exactly what each number and each chart represents.
+* **Requirements:**
+  1. "Resumen" rows: each row shows its label, a short muted caption and the value with its unit, using `Formatters`. Captions (adjust the wording to match the real formulas from TASK-004):
+    - Coste total: "Combustible + mantenimiento" → `236.63 €`
+    - Combustible: "Suma de repostajes" → `220.00 €`
+    - Mantenimiento: "Suma de servicios" → `16.63 €`
+    - Distancia recorrida: caption describing the real formula (e.g. "Del primer al último kilometraje registrado") → `1448 km`
+    - Coste por kilómetro: "Coste total ÷ distancia" → `0.16 €/km`
+    - Gasto mensual medio: "Coste total ÷ meses" → `118.32 €/mes`
+      When a value cannot be computed show "—" and a caption explaining what is missing (e.g. "Necesitas al menos 2 registros de kilometraje").
+  2. "Gasto mensual" chart:
+    - Title "Gasto mensual" and subtitle "Combustible + mantenimiento, en € por mes".
+    - Replace the text line `9/2026: 92.00 · 10/2026: 144.63` with a month label under each bar (short Spanish month, plus the year when it changes) and the value above each bar (e.g. `92 €` or `144.63 €`).
+    - Bars are zero-based with heights proportional to the value. Current month uses `barCurrent`, previous months `barPrevious`.
+    - With many months, show the most recent 12 and let the chart scroll horizontally.
+  3. "Tendencia del precio del combustible" chart:
+    - Title "Precio del combustible" and subtitle "Precio medio por litro de cada mes, en €/L". A small caption states the method ("Importe ÷ litros de cada mes").
+    - Replace the text line `9/2026: 1.79 · 10/2026: 1.82` with a value label and month label on each point.
+    - The vertical scale is adjusted to the price range, so a small change looks steep. Add the caption "Escala ajustada al rango de precios" and a delta chip such as `+0.03 €/L (+1.7 %)` computed from the unrounded values.
+    - One month: show a single point, no line. No data: empty state.
+  4. Empty state for every card when the period has no data ("Sin datos en este periodo").
+  5. Accessibility: each chart has a `contentDescription` summarizing its values and units (e.g. "Gasto mensual: septiembre 2026, 92 euros; octubre 2026, 144,63 euros").
+  6. Visual style follows the approved design tokens; no new colors.
+* **Acceptance Criteria:**
+  * No number on the screen appears without a unit or an explanatory caption.
+  * Changing the period filter updates summary, bars and price line consistently.
+  * Visible in dark and light, no text clipping at large font sizes.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
+
+#### TASK-006 — CHANGELOG.md, version 0.3.0 and final regression
+* **Status:** `BACKLOG`
+* **Objective:** Create the public changelog and release-ready versioning.
+* **Requirements:**
+  1. Before creating the file, search the repository (README, docs, any landing folder) for links to the changelog and use that exact filename and casing (GitHub URLs are case-sensitive). If none is found, create `CHANGELOG.md` at the repository root. Report the final path.
+  2. Format: Keep a Changelog 1.1.0 and Semantic Versioning (still 0.x). Written in Spanish because the audience is app users and it is linked from the Spanish landing page. Sections per version: Añadido / Cambiado / Corregido. Newest version first, with an `[Unreleased]` section on top and comparison links at the bottom if tags exist.
+  3. Backfill from `git log`, tags and `agent/CHANGELOG.md`. Do not invent entries; if dates cannot be determined, use the commit date. Use these known entries:
+    - 0.2.2: Añadido: aviso de cambios sin guardar al salir de los formularios de nuevo repostaje y nuevo servicio. Corregido: los formularios ya no siguen abiertos al volver desde otra pestaña.
+    - 0.2.1: Cambiado: rediseño visual con la paleta "Medianoche con calor" y degradados, en modo claro y oscuro. Corregido: dígitos invertidos en los campos de antelación, textos que rompían la interfaz en Ajustes, mensajes de guardado e importación que no desaparecían, barras superior e inferior más compactas, versión mostrada en "Acerca de".
+    - Earlier releases: only what git history supports.
+  4. Add the 0.3.0 entry for this epic: settings persistence with "Guardar cambios", notification permission and status/test notification, reliable reminder scheduling, clarified Statistics (units, captions, calculation fixes), `¢/L` → `€/L`, and the new changelog.
+  5. Set `versionName` to `0.3.0` and increase `versionCode` by one. The About card keeps reading the version from `BuildConfig`.
+  6. Process rule from now on: every task that changes behavior adds a line to `[Unreleased]` in `CHANGELOG.md`, in addition to `agent/CHANGELOG.md`.
+  7. Final regression pass: Settings save, permission flow on a fresh install (Android 13+), test notification, Statistics in all four period filters, dark and light.
+* **Acceptance Criteria:**
+  * `CHANGELOG.md` exists with the correct filename, valid structure and the entries above.
+  * About shows `Vehicle Manager v0.3.0`.
+* **Verification:** `./gradlew testDebugUnitTest assembleDebug`
