@@ -2,10 +2,13 @@ package com.example.vehiclemanager.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.vehiclemanager.core.data.notification.NotificationManagerImpl
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
+import com.example.vehiclemanager.core.domain.notification.NotificationPermissionChecker
+import com.example.vehiclemanager.core.domain.notification.NotificationPermissionStatus
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import com.example.vehiclemanager.core.ui.navigation.FormGuardHandler
 import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
@@ -55,11 +58,13 @@ data class SettingsUiState(
     val validationErrors: SettingsValidationErrors = SettingsValidationErrors(),
     val saveSuccessMessage: String? = null,
     val saveErrorMessage: String? = null,
+    val notificationPermissionStatus: NotificationPermissionStatus = NotificationPermissionStatus.GRANTED,
+    val showRationaleDialog: Boolean = false,
+    val triggerPermissionRequest: Boolean = false,
 ) {
     val isValid: Boolean
         get() = !validationErrors.hasErrors
 
-    // Backwards-compatibility getters for existing screen composables
     val themeMode: ThemeMode
         get() = draft.themeMode
 
@@ -85,6 +90,8 @@ class SettingsViewModel @Inject constructor(
     private val reminderPreferencesRepository: ReminderPreferencesRepository,
     private val navigationGuard: NavigationGuard,
     private val formDirtyStateHolder: FormDirtyStateHolder,
+    private val permissionChecker: NotificationPermissionChecker,
+    private val notificationManager: NotificationManagerImpl,
 ) : ViewModel() {
 
     private val dirtyToken = "settings_form"
@@ -121,6 +128,9 @@ class SettingsViewModel @Inject constructor(
                 themeMode to reminderPrefs
             }.collect { (persistedThemeMode, persistedPrefs) ->
                 _uiState.update { state ->
+                    val status = permissionChecker.getPermissionStatus()
+                    val shouldShowLaunchRationale = (status == NotificationPermissionStatus.NOT_ASKED || status == NotificationPermissionStatus.RATIONALE_NEEDED) && !persistedPrefs.notificationPermissionAsked
+
                     if (!state.isDirty || !initialSyncDone) {
                         initialSyncDone = true
                         val syncedDraft = SettingsDraft(
@@ -139,18 +149,68 @@ class SettingsViewModel @Inject constructor(
                             draft = syncedDraft,
                             isDirty = false,
                             validationErrors = validateDraft(syncedDraft),
+                            notificationPermissionStatus = status,
+                            showRationaleDialog = shouldShowLaunchRationale,
                         )
                     } else {
-                        // Keep dirty draft intact, but re-evaluate dirty state against updated baseline
                         val recomputedDirty = calculateIsDirty(state.draft, persistedThemeMode, persistedPrefs)
                         state.copy(
                             persistedThemeMode = persistedThemeMode,
                             persistedReminderPreferences = persistedPrefs,
                             isDirty = recomputedDirty,
+                            notificationPermissionStatus = status,
                         )
                     }
                 }
             }
+        }
+    }
+
+    fun checkNotificationPermission() {
+        val status = permissionChecker.getPermissionStatus()
+        _uiState.update { it.copy(notificationPermissionStatus = status) }
+    }
+
+    fun onAcceptRationale() {
+        _uiState.update {
+            it.copy(
+                showRationaleDialog = false,
+                triggerPermissionRequest = true,
+            )
+        }
+        viewModelScope.launch {
+            permissionChecker.setAskedBefore(true)
+        }
+    }
+
+    fun onDismissRationale() {
+        _uiState.update { it.copy(showRationaleDialog = false) }
+        viewModelScope.launch {
+            permissionChecker.setAskedBefore(true)
+        }
+    }
+
+    fun consumeTriggerPermissionRequest() {
+        _uiState.update { it.copy(triggerPermissionRequest = false) }
+    }
+
+    fun onPermissionResult(granted: Boolean) {
+        viewModelScope.launch {
+            permissionChecker.setAskedBefore(true)
+            checkNotificationPermission()
+        }
+    }
+
+    fun sendTestNotification() {
+        val status = permissionChecker.getPermissionStatus()
+        if (status == NotificationPermissionStatus.GRANTED) {
+            notificationManager.showTestNotification()
+            _uiState.update { it.copy(saveSuccessMessage = "Notificación de prueba enviada") }
+            autoDismissSaveSuccessMessage()
+        } else if (status == NotificationPermissionStatus.NOT_ASKED || status == NotificationPermissionStatus.RATIONALE_NEEDED) {
+            _uiState.update { it.copy(showRationaleDialog = true) }
+        } else {
+            _uiState.update { it.copy(saveErrorMessage = "Activa el permiso de notificaciones desde los ajustes del sistema") }
         }
     }
 
@@ -170,10 +230,16 @@ class SettingsViewModel @Inject constructor(
 
     fun setFuelNotificationsEnabled(enabled: Boolean) {
         updateDraft { copy(fuelNotificationsEnabled = enabled) }
+        if (enabled && _uiState.value.notificationPermissionStatus != NotificationPermissionStatus.GRANTED) {
+            requestPermissionContextual()
+        }
     }
 
     fun setTirePressureNotificationsEnabled(enabled: Boolean) {
         updateDraft { copy(tirePressureNotificationsEnabled = enabled) }
+        if (enabled && _uiState.value.notificationPermissionStatus != NotificationPermissionStatus.GRANTED) {
+            requestPermissionContextual()
+        }
     }
 
     fun setVibrateOnNotification(enabled: Boolean) {
@@ -206,6 +272,7 @@ class SettingsViewModel @Inject constructor(
                     tirePressureNotificationsEnabled = draft.tirePressureNotificationsEnabled,
                     vibrateOnNotification = draft.vibrateOnNotification,
                     onboardingCompleted = currentState.persistedReminderPreferences.onboardingCompleted,
+                    notificationPermissionAsked = currentState.persistedReminderPreferences.notificationPermissionAsked,
                 )
                 reminderPreferencesRepository.updateAll(newPrefs)
                 themePreferenceRepository.setThemeMode(draft.themeMode)
@@ -265,6 +332,13 @@ class SettingsViewModel @Inject constructor(
         navigationGuard.unregisterGuard(guardHandler)
         formDirtyStateHolder.setDirty(dirtyToken, false)
         super.onCleared()
+    }
+
+    private fun requestPermissionContextual() {
+        val status = permissionChecker.getPermissionStatus()
+        if (status == NotificationPermissionStatus.NOT_ASKED || status == NotificationPermissionStatus.RATIONALE_NEEDED) {
+            _uiState.update { it.copy(showRationaleDialog = true) }
+        }
     }
 
     private fun updateDraft(transform: SettingsDraft.() -> SettingsDraft) {

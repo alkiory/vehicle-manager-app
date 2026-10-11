@@ -51,6 +51,11 @@ interface ReminderPreferencesRepository {
     suspend fun setOnboardingCompleted(completed: Boolean)
 
     /**
+     * Set notification permission asked flag.
+     */
+    suspend fun setNotificationPermissionAsked(asked: Boolean)
+
+    /**
      * Update all preferences at once.
      */
     suspend fun updateAll(preferences: ReminderPreferences)

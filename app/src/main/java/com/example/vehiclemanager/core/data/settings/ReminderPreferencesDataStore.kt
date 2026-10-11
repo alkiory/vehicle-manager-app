@@ -32,6 +32,7 @@ class ReminderPreferencesDataStore @Inject constructor(
         val TIRE_PRESSURE_NOTIFICATIONS_ENABLED = booleanPreferencesKey("tire_pressure_notifications_enabled")
         val VIBRATE_ON_NOTIFICATION = booleanPreferencesKey("vibrate_on_notification")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
     }
 
     val reminderPreferences: Flow<ReminderPreferences> = context.reminderPreferencesDataStore.data.map { preferences ->
@@ -44,6 +45,7 @@ class ReminderPreferencesDataStore @Inject constructor(
             tirePressureNotificationsEnabled = preferences[PreferencesKeys.TIRE_PRESSURE_NOTIFICATIONS_ENABLED] ?: false,
             vibrateOnNotification = preferences[PreferencesKeys.VIBRATE_ON_NOTIFICATION] ?: true,
             onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
+            notificationPermissionAsked = preferences[PreferencesKeys.NOTIFICATION_PERMISSION_ASKED] ?: false,
         )
     }
 
@@ -90,6 +92,12 @@ class ReminderPreferencesDataStore @Inject constructor(
         }
     }
 
+    suspend fun updateNotificationPermissionAsked(asked: Boolean) {
+        context.reminderPreferencesDataStore.edit { preferences ->
+            preferences[PreferencesKeys.NOTIFICATION_PERMISSION_ASKED] = asked
+        }
+    }
+
     suspend fun updateAll(preferences: ReminderPreferences) {
         context.reminderPreferencesDataStore.edit { prefs ->
             prefs[PreferencesKeys.ADVANCE_DISTANCE_KM] = preferences.advanceDistanceKm
@@ -100,6 +108,7 @@ class ReminderPreferencesDataStore @Inject constructor(
             prefs[PreferencesKeys.TIRE_PRESSURE_NOTIFICATIONS_ENABLED] = preferences.tirePressureNotificationsEnabled
             prefs[PreferencesKeys.VIBRATE_ON_NOTIFICATION] = preferences.vibrateOnNotification
             prefs[PreferencesKeys.ONBOARDING_COMPLETED] = preferences.onboardingCompleted
+            prefs[PreferencesKeys.NOTIFICATION_PERMISSION_ASKED] = preferences.notificationPermissionAsked
         }
     }
 }

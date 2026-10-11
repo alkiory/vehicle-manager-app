@@ -153,12 +153,21 @@ private val primaryDestinations = listOf(
 @Composable
 fun AppScaffold(
     modifier: Modifier = Modifier,
+    initialDestination: String? = null,
     navController: NavHostController = rememberNavController(),
     viewModel: AppScaffoldViewModel = hiltViewModel(),
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val scaffoldState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    androidx.compose.runtime.LaunchedEffect(initialDestination) {
+        when (initialDestination) {
+            "maintenance" -> navController.navigateTo(MaintenanceRoute)
+            "fuel" -> navController.navigateTo(FuelRoute)
+            "settings" -> navController.navigateTo(SettingsRoute)
+        }
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= TABLET_BREAKPOINT_DP.dp

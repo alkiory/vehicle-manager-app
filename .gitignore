@@ -7,7 +7,6 @@
 # Gradle local configuration
 gradle-app.setting
 !gradle/wrapper/gradle-wrapper.jar
-agent/
 
 # =========================
 # Kotlin
@@ -80,3 +79,23 @@ Thumbs.db
 *.tar
 *.tar.gz
 *.zip
+
+# =========================
+# Local-only project documentation
+# =========================
+# Agent memory and internal changelog (not for public repo)
+agent/
+
+# Epics and instructions (internal spec, not published)
+# Kept out of the repo to avoid token bloat for the agent and to
+# prevent leaking internal roadmap decisions to end users.
+/epics/
+/docs/
+
+# =========================
+# Public files that MUST stay in the repo
+# =========================
+# CHANGELOG.md at the repository root is the PUBLIC changelog,
+# linked from the landing page. Do NOT ignore it.
+!CHANGELOG.md
+!README.md

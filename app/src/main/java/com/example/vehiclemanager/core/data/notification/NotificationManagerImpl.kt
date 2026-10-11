@@ -14,7 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Android-specific notification manager for displaying maintenance reminders.
+ * Android-specific notification manager for displaying maintenance reminders and test notifications.
  */
 @Singleton
 class NotificationManagerImpl @Inject constructor(
@@ -31,7 +31,7 @@ class NotificationManagerImpl @Inject constructor(
         private const val CHANNEL_NAME_FUEL_PRICE = "Fuel Price Alerts"
         private const val CHANNEL_DESCRIPTION_FUEL_PRICE = "Notifications when fuel prices are favorable"
 
-        private const val NOTIFICATION_ID_PREFIX = 1000L
+        private const val TEST_NOTIFICATION_ID = 9999
     }
 
     init {
@@ -63,6 +63,35 @@ class NotificationManagerImpl @Inject constructor(
             }
             notificationManager.createNotificationChannel(fuelPriceChannel)
         }
+    }
+
+    /**
+     * Show a test notification to verify notification permissions and channel functionality.
+     */
+    fun showTestNotification() {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("navigationDestination", "settings")
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            TEST_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_MAINTENANCE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Notificación de prueba")
+            .setContentText("Vehicle Manager: los recordatorios de mantenimiento y repostaje funcionan correctamente.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+        notificationManager.notify(TEST_NOTIFICATION_ID, notification)
     }
 
     /**
@@ -120,7 +149,7 @@ class NotificationManagerImpl @Inject constructor(
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_MAINTENANCE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(contentText)
             .setPriority(if (isOverdue) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
@@ -167,7 +196,7 @@ class NotificationManagerImpl @Inject constructor(
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_FUEL_PRICE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(contentTitle)
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -190,8 +219,6 @@ class NotificationManagerImpl @Inject constructor(
      * Cancel all notifications for a vehicle.
      */
     fun cancelAllNotificationsForVehicle(vehicleId: Long) {
-        // In production, this would iterate through known notification IDs for the vehicle
-        // For now, we cancel all maintenance notifications
         notificationManager.cancelAll()
     }
 

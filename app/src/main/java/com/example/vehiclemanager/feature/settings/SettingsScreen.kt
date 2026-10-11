@@ -1,8 +1,12 @@
 package com.example.vehiclemanager.feature.settings
 
+import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -33,9 +37,11 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -68,9 +76,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.vehiclemanager.BuildConfig
 import com.example.vehiclemanager.R
 import com.example.vehiclemanager.core.domain.ThemeMode
+import com.example.vehiclemanager.core.domain.notification.NotificationPermissionStatus
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppTheme
@@ -86,12 +97,35 @@ fun SettingsScreen(
     val backupState by backupViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.checkNotificationPermission()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             backupViewModel.consumeImportCompleted()
             backupViewModel.consumeError()
             viewModel.consumeSaveSuccessMessage()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        viewModel.onPermissionResult(isGranted)
+    }
+
+    LaunchedEffect(uiState.triggerPermissionRequest) {
+        if (uiState.triggerPermissionRequest) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            viewModel.consumeTriggerPermissionRequest()
         }
     }
 
@@ -125,6 +159,24 @@ fun SettingsScreen(
         if (backupState.exportJson != null) {
             createBackupLauncher.launch(context.getString(R.string.backup_export_filename))
         }
+    }
+
+    if (uiState.showRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onDismissRationale() },
+            title = { Text("¿Activar notificaciones?") },
+            text = { Text("Vehicle Manager te avisa de repostajes y servicios próximos. ¿Activar notificaciones?") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onAcceptRationale() }) {
+                    Text("Activar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onDismissRationale() }) {
+                    Text("Ahora no")
+                }
+            },
+        )
     }
 
     VehicleManagerScreen(
@@ -167,6 +219,27 @@ fun SettingsScreen(
                 SettingsCard(title = stringResource(R.string.reminder_settings_title), icon = Icons.Default.Notifications) {
                     val draft = uiState.draft
                     val errors = uiState.validationErrors
+
+                    // Notification status card
+                    NotificationStatusCard(
+                        status = uiState.notificationPermissionStatus,
+                        onRequestPermission = {
+                            if (uiState.notificationPermissionStatus == NotificationPermissionStatus.PERMANENTLY_DENIED ||
+                                uiState.notificationPermissionStatus == NotificationPermissionStatus.APP_NOTIFICATIONS_DISABLED
+                            ) {
+                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                        },
+                        onSendTestNotification = viewModel::sendTestNotification,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
 
                     // Advance distance input
                     ReminderNumericInputField(
@@ -328,6 +401,91 @@ fun SettingsScreen(
                         }
                         Text(text = "Guardar cambios")
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationStatusCard(
+    status: NotificationPermissionStatus,
+    onRequestPermission: () -> Unit,
+    onSendTestNotification: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            val (statusText, statusColor, descriptionText) = when (status) {
+                NotificationPermissionStatus.GRANTED -> Triple(
+                    "Notificaciones activadas",
+                    MaterialTheme.colorScheme.tertiary,
+                    "Recibirás alertas de mantenimiento y repostaje en tu dispositivo.",
+                )
+                NotificationPermissionStatus.APP_NOTIFICATIONS_DISABLED -> Triple(
+                    "Notificaciones desactivadas en el sistema",
+                    MaterialTheme.colorScheme.error,
+                    "Las notificaciones están deshabilitadas en los ajustes de Android para Vehicle Manager.",
+                )
+                NotificationPermissionStatus.PERMANENTLY_DENIED -> Triple(
+                    "Permiso denegado",
+                    MaterialTheme.colorScheme.error,
+                    "Has denegado el permiso de notificaciones. Puedes activarlo desde los ajustes del sistema.",
+                )
+                else -> Triple(
+                    "Notificaciones desactivadas",
+                    MaterialTheme.colorScheme.error,
+                    "Vehicle Manager necesita permiso para enviarte recordatorios de servicios y repostajes.",
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (status == NotificationPermissionStatus.GRANTED) Icons.Default.CheckCircle else Icons.Default.NotificationsOff,
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = descriptionText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (status != NotificationPermissionStatus.GRANTED) {
+                    Button(
+                        onClick = onRequestPermission,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(text = "Permitir", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onSendTestNotification,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(text = "Probar notificación", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

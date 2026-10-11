@@ -41,6 +41,10 @@ class ReminderPreferencesRepositoryImpl @Inject constructor(
         dataStore.updateOnboardingCompleted(completed)
     }
 
+    override suspend fun setNotificationPermissionAsked(asked: Boolean) {
+        dataStore.updateNotificationPermissionAsked(asked)
+    }
+
     override suspend fun updateAll(preferences: ReminderPreferences) {
         dataStore.updateAll(preferences)
     }

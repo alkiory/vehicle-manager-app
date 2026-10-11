@@ -1,9 +1,13 @@
 package com.example.vehiclemanager.feature.settings
 
+import androidx.test.core.app.ApplicationProvider
+import com.example.vehiclemanager.core.data.notification.NotificationManagerImpl
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
+import com.example.vehiclemanager.core.domain.notification.NotificationPermissionChecker
+import com.example.vehiclemanager.core.domain.notification.NotificationPermissionStatus
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import kotlinx.coroutines.Dispatchers
@@ -24,13 +28,18 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
 class SettingsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeThemeRepo: FakeThemePreferenceRepository
     private lateinit var fakeReminderRepo: FakeReminderPreferencesRepository
+    private lateinit var fakePermissionChecker: FakeNotificationPermissionChecker
+    private lateinit var notificationManager: NotificationManagerImpl
     private lateinit var navigationGuard: NavigationGuard
     private lateinit var formDirtyStateHolder: FormDirtyStateHolder
     private lateinit var viewModel: SettingsViewModel
@@ -40,6 +49,8 @@ class SettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeThemeRepo = FakeThemePreferenceRepository()
         fakeReminderRepo = FakeReminderPreferencesRepository()
+        fakePermissionChecker = FakeNotificationPermissionChecker()
+        notificationManager = NotificationManagerImpl(ApplicationProvider.getApplicationContext())
         navigationGuard = NavigationGuard()
         formDirtyStateHolder = FormDirtyStateHolder()
         viewModel = SettingsViewModel(
@@ -47,6 +58,8 @@ class SettingsViewModelTest {
             reminderPreferencesRepository = fakeReminderRepo,
             navigationGuard = navigationGuard,
             formDirtyStateHolder = formDirtyStateHolder,
+            permissionChecker = fakePermissionChecker,
+            notificationManager = notificationManager,
         )
     }
 
@@ -148,20 +161,27 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun repositoryRoundTrip_savesAndReadsBackUpdatedPreferences() = runTest {
+    fun notificationPermission_granted_allowsTestNotification() = runTest {
+        fakePermissionChecker.status = NotificationPermissionStatus.GRANTED
+        fakePermissionChecker.isGranted = true
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.setAdvanceDistanceKmText("1200")
-        viewModel.setNotificationTime(10, 30)
+        viewModel.sendTestNotification()
+        testDispatcher.scheduler.advanceTimeBy(100)
+
+        assertEquals("Notificación de prueba enviada", viewModel.uiState.value.saveSuccessMessage)
+    }
+
+    @Test
+    fun notificationPermission_notAsked_showsRationaleDialogOnTestNotification() = runTest {
+        fakePermissionChecker.status = NotificationPermissionStatus.NOT_ASKED
+        fakePermissionChecker.isGranted = false
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.saveSettings()
+        viewModel.sendTestNotification()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val updatedPrefs = fakeReminderRepo.currentPrefs
-        assertEquals(1200L, updatedPrefs.advanceDistanceKm)
-        assertEquals(10, updatedPrefs.notificationTimeHours)
-        assertEquals(30, updatedPrefs.notificationTimeMinutes)
+        assertTrue(viewModel.uiState.value.showRationaleDialog)
     }
 }
 
@@ -221,7 +241,31 @@ private class FakeReminderPreferencesRepository : ReminderPreferencesRepository 
         _reminderPreferences.value = _reminderPreferences.value.copy(onboardingCompleted = completed)
     }
 
+    override suspend fun setNotificationPermissionAsked(asked: Boolean) {
+        _reminderPreferences.value = _reminderPreferences.value.copy(notificationPermissionAsked = asked)
+    }
+
     override suspend fun updateAll(preferences: ReminderPreferences) {
         _reminderPreferences.value = preferences
     }
+}
+
+private class FakeNotificationPermissionChecker(
+    var isGranted: Boolean = true,
+    var notificationsEnabled: Boolean = true,
+    var showRationale: Boolean = false,
+    var askedBefore: Boolean = false,
+    var status: NotificationPermissionStatus = NotificationPermissionStatus.GRANTED,
+) : NotificationPermissionChecker {
+
+    override fun isPermissionGranted(): Boolean = isGranted
+    override fun areNotificationsEnabled(): Boolean = notificationsEnabled
+    override fun shouldShowRationale(): Boolean = showRationale
+    override fun hasAskedBefore(): Boolean = askedBefore
+
+    override suspend fun setAskedBefore(asked: Boolean) {
+        askedBefore = asked
+    }
+
+    override fun getPermissionStatus(apiLevel: Int): NotificationPermissionStatus = status
 }
