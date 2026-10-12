@@ -1,8 +1,12 @@
 package com.example.vehiclemanager.feature.settings
 
+import android.content.Context
+import android.os.PowerManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkManager
 import com.example.vehiclemanager.core.data.notification.NotificationManagerImpl
+import com.example.vehiclemanager.core.data.notification.ReminderScheduler
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
 import com.example.vehiclemanager.core.domain.ThemeMode
@@ -13,7 +17,9 @@ import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import com.example.vehiclemanager.core.ui.navigation.FormGuardHandler
 import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +28,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class SettingsDraft(
     val advanceDistanceKmText: String = "500",
@@ -61,6 +71,9 @@ data class SettingsUiState(
     val notificationPermissionStatus: NotificationPermissionStatus = NotificationPermissionStatus.GRANTED,
     val showRationaleDialog: Boolean = false,
     val triggerPermissionRequest: Boolean = false,
+    val nextCheckTimeStr: String? = null,
+    val isIgnoringBatteryOptimizations: Boolean = true,
+    val dismissBatteryHint: Boolean = false,
 ) {
     val isValid: Boolean
         get() = !validationErrors.hasErrors
@@ -86,6 +99,7 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val themePreferenceRepository: ThemePreferenceRepository,
     private val reminderPreferencesRepository: ReminderPreferencesRepository,
     private val navigationGuard: NavigationGuard,
@@ -120,6 +134,9 @@ class SettingsViewModel @Inject constructor(
 
     init {
         navigationGuard.registerGuard(guardHandler)
+        checkNotificationPermission()
+        checkBatteryOptimizations()
+        loadNextCheckTime()
         viewModelScope.launch {
             combine(
                 themePreferenceRepository.themeMode,
@@ -171,6 +188,39 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(notificationPermissionStatus = status) }
     }
 
+    fun checkBatteryOptimizations() {
+        runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val isIgnoring = pm.isIgnoringBatteryOptimizations(context.packageName)
+            _uiState.update { it.copy(isIgnoringBatteryOptimizations = isIgnoring) }
+        }
+    }
+
+    fun dismissBatteryHint() {
+        _uiState.update { it.copy(dismissBatteryHint = true) }
+    }
+
+    fun loadNextCheckTime() {
+        viewModelScope.launch {
+            runCatching {
+                val workInfos = withContext(Dispatchers.IO) {
+                    runCatching {
+                        WorkManager.getInstance(context)
+                            .getWorkInfosForUniqueWork(ReminderScheduler.WORK_NAME)
+                            .get()
+                    }.getOrNull()
+                }
+                val nextTime = workInfos?.firstOrNull()?.nextScheduleTimeMillis ?: 0L
+                if (nextTime > 0) {
+                    val formatted = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(nextTime))
+                    _uiState.update { it.copy(nextCheckTimeStr = formatted) }
+                } else {
+                    _uiState.update { it.copy(nextCheckTimeStr = null) }
+                }
+            }
+        }
+    }
+
     fun onAcceptRationale() {
         _uiState.update {
             it.copy(
@@ -204,7 +254,7 @@ class SettingsViewModel @Inject constructor(
     fun sendTestNotification() {
         val status = permissionChecker.getPermissionStatus()
         if (status == NotificationPermissionStatus.GRANTED) {
-            notificationManager.showTestNotification()
+            notificationManager.showTestNotification(_uiState.value.draft.vibrateOnNotification)
             _uiState.update { it.copy(saveSuccessMessage = "Notificación de prueba enviada") }
             autoDismissSaveSuccessMessage()
         } else if (status == NotificationPermissionStatus.NOT_ASKED || status == NotificationPermissionStatus.RATIONALE_NEEDED) {
@@ -276,6 +326,12 @@ class SettingsViewModel @Inject constructor(
                 )
                 reminderPreferencesRepository.updateAll(newPrefs)
                 themePreferenceRepository.setThemeMode(draft.themeMode)
+
+                // Reschedule reminders with new time (safely caught for tests)
+                runCatching {
+                    ReminderScheduler.schedule(context, draft.notificationTimeHours, draft.notificationTimeMinutes)
+                }
+                loadNextCheckTime()
             }.onSuccess {
                 formDirtyStateHolder.setDirty(dirtyToken, false)
                 _uiState.update { state ->

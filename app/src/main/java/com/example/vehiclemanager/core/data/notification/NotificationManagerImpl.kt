@@ -23,7 +23,8 @@ class NotificationManagerImpl @Inject constructor(
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     companion object {
-        private const val CHANNEL_ID_MAINTENANCE = "maintenance_reminders"
+        const val CHANNEL_ID_MAINTENANCE_VIBRATING = "maintenance_reminders_vibrating"
+        const val CHANNEL_ID_MAINTENANCE_SILENT = "maintenance_reminders_silent"
         private const val CHANNEL_NAME_MAINTENANCE = "Service Reminders"
         private const val CHANNEL_DESCRIPTION_MAINTENANCE = "Notifications for upcoming maintenance services"
 
@@ -40,17 +41,29 @@ class NotificationManagerImpl @Inject constructor(
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Maintenance reminders channel
-            val maintenanceChannel = NotificationChannel(
-                CHANNEL_ID_MAINTENANCE,
-                CHANNEL_NAME_MAINTENANCE,
+            // Maintenance reminders channel - vibrating
+            val vibratingChannel = NotificationChannel(
+                CHANNEL_ID_MAINTENANCE_VIBRATING,
+                "$CHANNEL_NAME_MAINTENANCE (Vibrating)",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = CHANNEL_DESCRIPTION_MAINTENANCE
                 enableVibration(true)
                 setShowBadge(true)
             }
-            notificationManager.createNotificationChannel(maintenanceChannel)
+            notificationManager.createNotificationChannel(vibratingChannel)
+
+            // Maintenance reminders channel - silent
+            val silentChannel = NotificationChannel(
+                CHANNEL_ID_MAINTENANCE_SILENT,
+                "$CHANNEL_NAME_MAINTENANCE (Silent)",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = CHANNEL_DESCRIPTION_MAINTENANCE
+                enableVibration(false)
+                setShowBadge(true)
+            }
+            notificationManager.createNotificationChannel(silentChannel)
 
             // Fuel price alerts channel
             val fuelPriceChannel = NotificationChannel(
@@ -68,7 +81,7 @@ class NotificationManagerImpl @Inject constructor(
     /**
      * Show a test notification to verify notification permissions and channel functionality.
      */
-    fun showTestNotification() {
+    fun showTestNotification(vibrate: Boolean = true) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("navigationDestination", "settings")
@@ -81,7 +94,9 @@ class NotificationManagerImpl @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_MAINTENANCE)
+        val channelId = if (vibrate) CHANNEL_ID_MAINTENANCE_VIBRATING else CHANNEL_ID_MAINTENANCE_SILENT
+
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Notificación de prueba")
             .setContentText("Vehicle Manager: los recordatorios de mantenimiento y repostaje funcionan correctamente.")
@@ -104,6 +119,7 @@ class NotificationManagerImpl @Inject constructor(
         dueDateMs: Long,
         dueOdometer: Long,
         isOverdue: Boolean,
+        vibrateOnNotification: Boolean = true,
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -148,7 +164,9 @@ class NotificationManagerImpl @Inject constructor(
             }
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_MAINTENANCE)
+        val channelId = if (vibrateOnNotification) CHANNEL_ID_MAINTENANCE_VIBRATING else CHANNEL_ID_MAINTENANCE_SILENT
+
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(contentText)
@@ -170,6 +188,7 @@ class NotificationManagerImpl @Inject constructor(
         stationName: String,
         pricePerLiter: Double,
         vehicleName: String? = null,
+        vibrateOnNotification: Boolean = true,
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -195,7 +214,9 @@ class NotificationManagerImpl @Inject constructor(
             append(" €/L")
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_FUEL_PRICE)
+        val channelId = if (vibrateOnNotification) CHANNEL_ID_MAINTENANCE_VIBRATING else CHANNEL_ID_MAINTENANCE_SILENT
+
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(contentTitle)
             .setContentText(contentText)

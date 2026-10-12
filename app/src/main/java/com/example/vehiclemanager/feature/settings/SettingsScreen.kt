@@ -223,6 +223,7 @@ fun SettingsScreen(
                     // Notification status card
                     NotificationStatusCard(
                         status = uiState.notificationPermissionStatus,
+                        nextCheckTimeStr = uiState.nextCheckTimeStr,
                         onRequestPermission = {
                             if (uiState.notificationPermissionStatus == NotificationPermissionStatus.PERMANENTLY_DENIED ||
                                 uiState.notificationPermissionStatus == NotificationPermissionStatus.APP_NOTIFICATIONS_DISABLED
@@ -240,6 +241,52 @@ fun SettingsScreen(
                         onSendTestNotification = viewModel::sendTestNotification,
                         modifier = Modifier.padding(top = 12.dp),
                     )
+
+                    if (!uiState.isIgnoringBatteryOptimizations && !uiState.dismissBatteryHint) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Optimización de batería activa",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "El ahorro de energía del sistema puede retrasar la ejecución de los recordatorios automáticos.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text(text = "Configurar", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                    OutlinedButton(
+                                        onClick = viewModel::dismissBatteryHint,
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text(text = "Ocultar", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Advance distance input
                     ReminderNumericInputField(
@@ -259,6 +306,13 @@ fun SettingsScreen(
                         suffix = stringResource(R.string.reminder_advance_days_unit),
                         errorMessage = errors.advanceDaysError,
                         modifier = Modifier.padding(top = 12.dp),
+                    )
+
+                    Text(
+                        text = "Regla de evaluación: Se notifica cuando el kilometraje restante es menor o igual a la distancia de antelación, o la fecha de vencimiento está a menos de los días indicados.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
                     )
 
                     // Notification time
@@ -410,6 +464,7 @@ fun SettingsScreen(
 @Composable
 private fun NotificationStatusCard(
     status: NotificationPermissionStatus,
+    nextCheckTimeStr: String?,
     onRequestPermission: () -> Unit,
     onSendTestNotification: () -> Unit,
     modifier: Modifier = Modifier,
@@ -467,6 +522,16 @@ private fun NotificationStatusCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            if (nextCheckTimeStr != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Próxima comprobación: $nextCheckTimeStr",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
             Row(

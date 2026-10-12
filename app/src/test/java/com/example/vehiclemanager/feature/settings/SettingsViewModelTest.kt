@@ -54,6 +54,7 @@ class SettingsViewModelTest {
         navigationGuard = NavigationGuard()
         formDirtyStateHolder = FormDirtyStateHolder()
         viewModel = SettingsViewModel(
+            context = ApplicationProvider.getApplicationContext(),
             themePreferenceRepository = fakeThemeRepo,
             reminderPreferencesRepository = fakeReminderRepo,
             navigationGuard = navigationGuard,

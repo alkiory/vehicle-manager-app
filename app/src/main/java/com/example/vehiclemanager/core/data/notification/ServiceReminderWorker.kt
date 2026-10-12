@@ -1,17 +1,23 @@
 package com.example.vehiclemanager.core.data.notification
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.vehiclemanager.core.domain.GetDueServicesUseCase
+import com.example.vehiclemanager.core.domain.ReminderEvaluator
+import com.example.vehiclemanager.core.domain.ReminderItem
+import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
+import com.example.vehiclemanager.core.domain.ServiceStatus
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
-import java.util.concurrent.TimeUnit
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * WorkManager worker that checks for due services and schedules notifications.
@@ -23,26 +29,60 @@ class ServiceReminderWorker @AssistedInject constructor(
     private val getDueServicesUseCase: GetDueServicesUseCase,
     private val notificationManager: NotificationManagerImpl,
     private val notificationRepository: NotificationRepository,
+    private val reminderPreferencesRepository: ReminderPreferencesRepository,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
         return try {
+            // Check if POST_NOTIFICATIONS permission is missing; if so, skip posting silently
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            val prefs = reminderPreferencesRepository.reminderPreferences.first()
             val dueServices = getDueServicesUseCase.getDueServices().first()
+            val today = LocalDate.now()
 
             dueServices.forEach { service ->
-                // Check if we've already triggered a notification for this service
+                val reminderItem = ReminderItem(
+                    scheduleId = service.scheduleId,
+                    vehicleId = service.vehicleId,
+                    vehicleName = service.vehicleName,
+                    serviceTitle = service.serviceTitle,
+                    dueDate = Instant.ofEpochMilli(service.dueDateMs).atZone(ZoneId.systemDefault()).toLocalDate(),
+                    dueOdometer = service.dueOdometer,
+                )
+
                 val existingNotification = notificationRepository.getNotification(service.scheduleId)
-                if (existingNotification == null || !existingNotification.isTriggered) {
-                    // Schedule notification
-                    val notificationId = SERVICE_NOTIFICATION_PREFIX + service.scheduleId
-                    notificationManager.showMaintenanceReminder(
-                        notificationId = notificationId,
-                        vehicleName = service.vehicleName,
-                        serviceTitle = service.serviceTitle,
-                        dueDateMs = service.dueDateMs,
-                        dueOdometer = service.dueOdometer,
-                        isOverdue = service.status == com.example.vehiclemanager.core.domain.ServiceStatus.OVERDUE,
-                    )
+                val lastNotifiedDate = existingNotification?.triggeredDateMs?.let {
+                    Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                }
+
+                val evaluation = ReminderEvaluator.evaluate(
+                    item = reminderItem,
+                    currentOdometer = 0L, // evaluated via use case / vehicle odometer
+                    today = today,
+                    leadDays = prefs.advanceDays,
+                    leadKm = prefs.advanceDistanceKm,
+                    fuelNotificationsEnabled = prefs.fuelNotificationsEnabled,
+                    tirePressureNotificationsEnabled = prefs.tirePressureNotificationsEnabled,
+                    lastNotifiedDate = lastNotifiedDate,
+                )
+
+                if (evaluation.shouldNotify && (existingNotification == null || !existingNotification.isTriggered)) {
+                    if (hasPermission) {
+                        val notificationId = SERVICE_NOTIFICATION_PREFIX + service.scheduleId
+                        notificationManager.showMaintenanceReminder(
+                            notificationId = notificationId,
+                            vehicleName = service.vehicleName,
+                            serviceTitle = service.serviceTitle,
+                            dueDateMs = service.dueDateMs,
+                            dueOdometer = service.dueOdometer,
+                            isOverdue = service.status == ServiceStatus.OVERDUE,
+                            vibrateOnNotification = prefs.vibrateOnNotification,
+                        )
+                    }
 
                     // Save notification record
                     val notificationEntity = NotificationScheduleEntity(
@@ -65,31 +105,14 @@ class ServiceReminderWorker @AssistedInject constructor(
     }
 
     companion object {
-        private const val WORK_NAME = "service_reminder_check"
         private const val SERVICE_NOTIFICATION_PREFIX = 10000L
 
-        /**
-         * Schedule periodic notification checks.
-         * Runs every 12 hours to check for due services.
-         */
-        fun schedule(context: Context) {
-            val workRequest = PeriodicWorkRequestBuilder<ServiceReminderWorker>(
-                12, TimeUnit.HOURS,
-            ).build()
-
-            WorkManager.getInstance(context)
-                .enqueueUniquePeriodicWork(
-                    WORK_NAME,
-                    ExistingPeriodicWorkPolicy.KEEP,
-                    workRequest,
-                )
+        fun schedule(context: Context, hours: Int = 9, minutes: Int = 0) {
+            ReminderScheduler.schedule(context, hours, minutes)
         }
 
-        /**
-         * Cancel periodic notification checks.
-         */
         fun cancel(context: Context) {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            ReminderScheduler.cancel(context)
         }
     }
 }
