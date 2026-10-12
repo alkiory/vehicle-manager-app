@@ -1,11 +1,12 @@
 package com.example.vehiclemanager.core.domain
 
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
-import java.math.BigInteger
 import javax.inject.Inject
 
 class CalculateVehicleStatsUseCase @Inject constructor() {
@@ -14,29 +15,57 @@ class CalculateVehicleStatsUseCase @Inject constructor() {
         maintenanceRecords: List<MaintenanceRecord>,
         period: StatsPeriod,
         currentDateMs: Long,
+        activeVehicleId: Long? = null,
     ): VehicleStats {
         val startDateMs = period.startDateMs(currentDateMs)
-        val filteredFuel = fuelRecords.filter { it.timestampMs.isInPeriod(startDateMs, currentDateMs) }
-        val filteredMaintenance = maintenanceRecords.filter {
+        val filteredFuel = fuelRecords.filter {
+            (activeVehicleId == null || it.vehicleId == activeVehicleId) &&
             it.timestampMs.isInPeriod(startDateMs, currentDateMs)
         }
+        val filteredMaintenance = maintenanceRecords.filter {
+            (activeVehicleId == null || it.vehicleId == activeVehicleId) &&
+            it.timestampMs.isInPeriod(startDateMs, currentDateMs)
+        }
+
         val totalFuelCostCents = filteredFuel.sumOf { it.totalCostCents }
         val totalMaintenanceCostCents = filteredMaintenance.sumOf { it.costCents }
         val totalCostCents = totalFuelCostCents + totalMaintenanceCostCents
+
         val odometers = (filteredFuel.map { it.odometerKm } + filteredMaintenance.map { it.odometerKm })
         val totalDistanceKm = if (odometers.size < 2) {
             0L
         } else {
             (odometers.maxOrNull()!! - odometers.minOrNull()!!).coerceAtLeast(0L)
         }
-        val monthsWithData = (filteredFuel.map { it.timestampMs } + filteredMaintenance.map { it.timestampMs })
+
+        val costPerKilometerCentsX100 = if (totalDistanceKm <= 0 || totalCostCents <= 0) {
+            null
+        } else {
+            BigDecimal.valueOf(totalCostCents)
+                .multiply(BigDecimal(100L))
+                .divide(BigDecimal(totalDistanceKm), 0, RoundingMode.HALF_UP)
+                .toLong()
+        }
+
+        val allMonths = (filteredFuel.map { it.timestampMs } + filteredMaintenance.map { it.timestampMs })
             .map { it.toYearMonth() }
             .distinct()
-            .size
-        val averageMonthlySpendCents = if (monthsWithData == 0) {
+            .sorted()
+
+        val monthsCount = if (allMonths.isEmpty()) {
+            0
+        } else {
+            val first = allMonths.first()
+            val last = allMonths.last()
+            ChronoUnit.MONTHS.between(first, last).toInt() + 1
+        }
+
+        val averageMonthlySpendCents = if (monthsCount <= 0 || totalCostCents <= 0) {
             0L
         } else {
-            totalCostCents / monthsWithData
+            BigDecimal.valueOf(totalCostCents)
+                .divide(BigDecimal(monthsCount), 0, RoundingMode.HALF_UP)
+                .toLong()
         }
 
         return VehicleStats(
@@ -44,9 +73,7 @@ class CalculateVehicleStatsUseCase @Inject constructor() {
             totalFuelCostCents = totalFuelCostCents,
             totalMaintenanceCostCents = totalMaintenanceCostCents,
             totalCostCents = totalCostCents,
-            costPerKilometerCentsX100 = totalCostCents
-                .takeIf { totalDistanceKm > 0 }
-                ?.let { it.multiplyAndDivide(100L, totalDistanceKm) },
+            costPerKilometerCentsX100 = costPerKilometerCentsX100,
             averageMonthlySpendCents = averageMonthlySpendCents,
             totalDistanceKm = totalDistanceKm,
             monthlyExpenditure = buildMonthlyExpenditure(filteredFuel, filteredMaintenance),
@@ -76,14 +103,16 @@ class CalculateVehicleStatsUseCase @Inject constructor() {
         .groupBy { it.timestampMs.toYearMonth() }
         .toSortedMap()
         .map { (month, monthRecords) ->
-            val totalLitersX100 = monthRecords.sumOf { it.litersX100.toLong() }
-            val weightedPrice = if (totalLitersX100 <= 0L) {
+            val totalCostBigDecimal = monthRecords.sumOf { BigDecimal.valueOf(it.totalCostCents) }
+            val totalLitersBigDecimal = monthRecords.sumOf {
+                BigDecimal.valueOf(it.litersX100.toLong()).divide(BigDecimal(100), 4, RoundingMode.HALF_UP)
+            }
+            val weightedPrice = if (totalLitersBigDecimal.compareTo(BigDecimal.ZERO) <= 0) {
                 0L
             } else {
-                monthRecords.fold(BigInteger.ZERO) { total, record ->
-                    total + BigInteger.valueOf(record.pricePerLiterCents)
-                        .multiply(BigInteger.valueOf(record.litersX100.toLong()))
-                }.divide(BigInteger.valueOf(totalLitersX100)).toLong()
+                totalCostBigDecimal
+                    .divide(totalLitersBigDecimal, 0, RoundingMode.HALF_UP)
+                    .toLong()
             }
             MonthlyFuelPrice(month.year, month.monthValue, weightedPrice)
         }
@@ -153,9 +182,3 @@ private fun Long.minusMonthsSafely(months: Long): Long = runCatching {
         .toInstant()
         .toEpochMilli()
 }.getOrElse { Long.MIN_VALUE }
-
-private fun Long.multiplyAndDivide(multiplier: Long, divisor: Long): Long =
-    BigInteger.valueOf(this)
-        .multiply(BigInteger.valueOf(multiplier))
-        .divide(BigInteger.valueOf(divisor))
-        .toLong()

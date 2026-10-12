@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.domain.FuelRecordRepository
+import com.example.vehiclemanager.core.ui.Formatters
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.navigation.FuelDetailRoute
@@ -83,9 +84,9 @@ private fun FuelDetailContent(record: FuelRecord) {
             text = dateFormatter.format(Date(record.timestampMs)),
             style = MaterialTheme.typography.headlineSmall,
         )
-        DetailRow("Cantidad", formatLiters(record.litersX100))
-        DetailRow("Precio por litro", formatCents(record.pricePerLiterCents))
-        DetailRow("Coste total", formatCents(record.totalCostCents))
+        DetailRow("Cantidad", Formatters.formatLiters(record.litersX100))
+        DetailRow("Precio por litro", Formatters.formatFuelPrice(record.pricePerLiterCents))
+        DetailRow("Coste total", Formatters.formatMoney(record.totalCostCents))
         DetailRow("Odómetro", "${record.odometerKm} km")
         DetailRow("Estado del depósito", if (record.isFullTank) "Depósito lleno" else "Repostaje parcial")
         record.stationName?.let { DetailRow("Gasolinera", it) }
@@ -124,12 +125,3 @@ data class FuelDetailUiState(
     val isLoading: Boolean = true,
     val record: FuelRecord? = null,
 )
-
-private fun formatLiters(litersX100: Int): String {
-    val whole = litersX100 / 100
-    val fraction = (litersX100 % 100).toString().padStart(2, '0')
-    return "$whole.$fraction L"
-}
-
-private fun formatCents(cents: Long): String =
-    "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"

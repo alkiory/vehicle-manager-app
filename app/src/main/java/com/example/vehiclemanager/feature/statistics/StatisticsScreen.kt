@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -33,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -47,9 +48,12 @@ import com.example.vehiclemanager.core.domain.MonthlyExpenditure
 import com.example.vehiclemanager.core.domain.MonthlyFuelPrice
 import com.example.vehiclemanager.core.domain.StatsPeriod
 import com.example.vehiclemanager.core.domain.VehicleStats
+import com.example.vehiclemanager.core.ui.Formatters
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppTheme
+import java.time.Month
+import java.time.format.TextStyle
 import java.util.Locale
 
 @Composable
@@ -173,28 +177,70 @@ private fun SummaryCard(stats: VehicleStats) {
         chipBrush = AppTheme.gradients.barCurrent,
         title = "Resumen",
     ) {
-        SummaryMetricRow("Coste total", formatCents(stats.totalCostCents))
-        SummaryDivider()
-        SummaryMetricRow("Combustible", formatCents(stats.totalFuelCostCents))
-        SummaryDivider()
-        SummaryMetricRow("Mantenimiento", formatCents(stats.totalMaintenanceCostCents))
-        SummaryDivider()
-        SummaryMetricRow("Distancia recorrida", "${stats.totalDistanceKm} km")
-        SummaryDivider()
-        SummaryMetricRow(
-            "Coste por kilómetro",
-            stats.costPerKilometerCentsX100?.let { formatHundredthsCents(it) } ?: "No disponible",
-            valueColor = AppTheme.semanticColors.cost,
-        )
-        SummaryDivider()
-        SummaryMetricRow("Gasto mensual medio", formatCents(stats.averageMonthlySpendCents))
+        if (stats.totalCostCents == 0L) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Sin datos en este periodo",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                SummaryMetricRow(
+                    label = "Coste total",
+                    caption = "Combustible + mantenimiento",
+                    value = Formatters.formatMoney(stats.totalCostCents),
+                )
+                SummaryDivider()
+                SummaryMetricRow(
+                    label = "Combustible",
+                    caption = "Suma de repostajes",
+                    value = Formatters.formatMoney(stats.totalFuelCostCents),
+                )
+                SummaryDivider()
+                SummaryMetricRow(
+                    label = "Mantenimiento",
+                    caption = "Suma de servicios",
+                    value = Formatters.formatMoney(stats.totalMaintenanceCostCents),
+                )
+                SummaryDivider()
+                SummaryMetricRow(
+                    label = "Distancia recorrida",
+                    caption = "Del primer al último kilometraje",
+                    value = if (stats.totalDistanceKm > 0) Formatters.formatDistance(stats.totalDistanceKm) else "—",
+                    missingCaption = "Necesitas al menos 2 registros de kilometraje",
+                )
+                SummaryDivider()
+                SummaryMetricRow(
+                    label = "Coste por kilómetro",
+                    caption = "Coste total ÷ distancia",
+                    value = stats.costPerKilometerCentsX100?.let { Formatters.formatCostPerKm(it) } ?: "—",
+                    missingCaption = "Necesitas al menos 2 registros con distancia",
+                    valueColor = AppTheme.semanticColors.cost,
+                )
+                SummaryDivider()
+                SummaryMetricRow(
+                    label = "Gasto mensual medio",
+                    caption = "Coste total ÷ meses",
+                    value = Formatters.formatMonthlySpend(stats.averageMonthlySpendCents),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun SummaryMetricRow(
     label: String,
+    caption: String,
     value: String,
+    missingCaption: String? = null,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     Row(
@@ -202,9 +248,22 @@ private fun SummaryMetricRow(
             .fillMaxWidth()
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Text(text = value, fontWeight = FontWeight.SemiBold, color = valueColor)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                text = if (value == "—" && missingCaption != null) missingCaption else caption,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (value == "—") MaterialTheme.colorScheme.onSurfaceVariant else valueColor,
+        )
     }
 }
 
@@ -227,30 +286,84 @@ private fun MonthlyExpenseCard(values: List<MonthlyExpenditure>, modifier: Modif
         chipBrush = AppTheme.gradients.vehicleCard,
         title = "Gasto mensual",
         modifier = modifier,
+        subtitle = "Combustible + mantenimiento, en € por mes",
     ) {
         if (values.isEmpty()) {
-            Text(
-                text = "Sin datos de gasto para este período.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        } else {
-            BarChart(
-                values = values.map { it.totalCostCents },
-                currentBarBrush = AppTheme.gradients.barCurrent,
-                previousBarBrush = AppTheme.gradients.barPrevious,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Sin datos en este periodo",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            val recentValues = values.takeLast(12)
+            val maxCost = remember(recentValues) { recentValues.maxOfOrNull { it.totalCostCents }?.coerceAtLeast(1L) ?: 1L }
+
+            val summaryDesc = "Gráfico de gasto mensual: " + recentValues.joinToString(", ") { exp ->
+                val monthName = Month.of(exp.month).getDisplayName(TextStyle.FULL, Locale("es", "ES"))
+                "$monthName de ${exp.year}, ${Formatters.formatMoney(exp.totalCostCents)}"
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(top = 12.dp)
-                    .semantics { contentDescription = "Gráfico de gasto mensual" },
-            )
-            Text(
-                text = values.joinToString("  ·  ") { "${it.month}/${it.year}: ${formatCents(it.totalCostCents)}" },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+                    .semantics { contentDescription = summaryDesc },
+            ) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                ) {
+                    items(recentValues.size) { index ->
+                        val item = recentValues[index]
+                        val isCurrent = (index == recentValues.lastIndex)
+                        val brush = if (isCurrent) AppTheme.gradients.barCurrent else AppTheme.gradients.barPrevious
+                        val barHeightFraction = (item.totalCostCents.toFloat() / maxCost.toFloat()).coerceIn(0.05f, 1f)
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(60.dp),
+                        ) {
+                            Text(
+                                text = Formatters.formatMoney(item.totalCostCents),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .height(120.dp)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.BottomCenter,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.75f)
+                                        .height(120.dp * barHeightFraction)
+                                        .background(brush, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val monthLabel = Month.of(item.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES"))
+                            Text(
+                                text = "$monthLabel ${item.year % 100}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -260,34 +373,199 @@ private fun FuelPriceCard(values: List<MonthlyFuelPrice>, modifier: Modifier = M
     SummaryCardShell(
         icon = Icons.Default.BarChart,
         chipBrush = AppTheme.gradients.fuelChip,
-        title = "Tendencia del precio del combustible",
+        title = "Precio del combustible",
         modifier = modifier,
+        subtitle = "Precio medio por litro de cada mes, en €/L",
     ) {
         if (values.isEmpty()) {
-            Text(
-                text = "Sin datos de precio de combustible para este período.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        } else {
-            LineChart(
-                values = values.map { it.averagePricePerLiterCents },
-                lineColor = AppTheme.semanticColors.alert,
-                fillBrush = AppTheme.gradients.priceTrendFill,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Sin datos en este periodo",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            val recentValues = values.takeLast(12)
+
+            val deltaText = if (recentValues.size >= 2) {
+                val current = recentValues.last().averagePricePerLiterCents.toDouble() / 100.0
+                val previous = recentValues[recentValues.lastIndex - 1].averagePricePerLiterCents.toDouble() / 100.0
+                val diff = current - previous
+                val pct = if (previous > 0.0) (diff / previous) * 100.0 else 0.0
+                val sign = if (diff >= 0) "+" else ""
+                String.format(Locale.US, "%s%.2f €/L (%s%.1f %%)", sign, diff, sign, pct)
+            } else {
+                null
+            }
+
+            val summaryDesc = "Gráfico de tendencia de precio del combustible: " + recentValues.joinToString(", ") { p ->
+                val monthName = Month.of(p.month).getDisplayName(TextStyle.FULL, Locale("es", "ES"))
+                "$monthName de ${p.year}, ${Formatters.formatFuelPrice(p.averagePricePerLiterCents)}"
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(top = 12.dp)
-                    .semantics { contentDescription = "Gráfico de tendencia de precio del combustible" },
-            )
-            Text(
-                text = values.joinToString("  ·  ") {
-                    "${it.month}/${it.year}: ${formatCents(it.averagePricePerLiterCents)}"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+                    .semantics { contentDescription = summaryDesc },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = "Importe ÷ litros de cada mes",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "Escala ajustada al rango de precios",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (deltaText != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = deltaText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (recentValues.size == 1) {
+                    val p = recentValues.first()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = Formatters.formatFuelPrice(p.averagePricePerLiterCents),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val monthLabel = Month.of(p.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES"))
+                            Text(
+                                text = "$monthLabel ${p.year % 100}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else {
+                    LineChartWithLabels(
+                        values = recentValues,
+                        lineColor = AppTheme.semanticColors.alert,
+                        fillBrush = AppTheme.gradients.priceTrendFill,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineChartWithLabels(
+    values: List<MonthlyFuelPrice>,
+    lineColor: Color,
+    fillBrush: Brush,
+    modifier: Modifier = Modifier,
+) {
+    val prices = values.map { it.averagePricePerLiterCents }
+    val maxPrice = remember(prices) { prices.maxOrNull()?.coerceAtLeast(1L) ?: 1L }
+    val minPrice = remember(prices) { prices.minOrNull() ?: 0L }
+    val range = (maxPrice - minPrice).coerceAtLeast(1L).toFloat()
+
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val step = if (values.size > 1) size.width / (values.size - 1).toFloat() else size.width
+                val points = values.mapIndexed { index, item ->
+                    val normalized = if (range > 0f) (item.averagePricePerLiterCents - minPrice).toFloat() / range else 0.5f
+                    val y = size.height - (normalized * (size.height - 24.dp.toPx()) + 12.dp.toPx())
+                    val x = if (values.size > 1) index * step else size.width / 2f
+                    Offset(x, y)
+                }
+
+                if (points.size >= 2) {
+                    val fillPath = Path().apply {
+                        moveTo(points.first().x, size.height)
+                        lineTo(points.first().x, points.first().y)
+                        points.drop(1).forEach { lineTo(it.x, it.y) }
+                        lineTo(points.last().x, size.height)
+                        close()
+                    }
+                    drawPath(path = fillPath, brush = fillBrush)
+
+                    points.zipWithNext().forEach { (start, end) ->
+                        drawLine(color = lineColor, start = start, end = end, strokeWidth = 3.dp.toPx())
+                    }
+                }
+
+                points.forEach { point ->
+                    drawCircle(color = lineColor, radius = 5.dp.toPx(), center = point)
+                    drawCircle(color = Color.White, radius = 2.5.dp.toPx(), center = point)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            values.forEach { item ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        text = Formatters.formatFuelPrice(item.averagePricePerLiterCents),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    val monthLabel = Month.of(item.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES"))
+                    Text(
+                        text = "$monthLabel ${item.year % 100}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }
@@ -298,6 +576,7 @@ private fun SummaryCardShell(
     chipBrush: Brush,
     title: String,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     content: @Composable () -> Unit,
 ) {
     Card(
@@ -320,85 +599,26 @@ private fun SummaryCardShell(
                         modifier = Modifier.size(18.dp),
                     )
                 }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 10.dp),
-                )
+                Column(
+                    modifier = Modifier
+                        .padding(start = 10.dp)
+                        .weight(1f),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
             content()
-        }
-    }
-}
-
-@Composable
-private fun BarChart(
-    values: List<Long>,
-    currentBarBrush: Brush,
-    previousBarBrush: Brush,
-    modifier: Modifier = Modifier,
-) {
-    val maximum = remember(values) { values.maxOrNull()?.coerceAtLeast(1L) ?: 1L }
-    Canvas(modifier = modifier) {
-        val slotWidth = size.width / values.size.coerceAtLeast(1)
-        val barWidth = slotWidth * 0.62f
-        values.forEachIndexed { index, value ->
-            val height = size.height * (value.toFloat() / maximum.toFloat())
-            val brush = if (index == values.lastIndex) currentBarBrush else previousBarBrush
-            drawRect(
-                brush = brush,
-                topLeft = Offset(index * slotWidth + (slotWidth - barWidth) / 2f, size.height - height),
-                size = Size(barWidth, height),
-            )
-        }
-    }
-}
-
-@Composable
-private fun LineChart(
-    values: List<Long>,
-    lineColor: Color,
-    fillBrush: Brush,
-    modifier: Modifier = Modifier,
-) {
-    val maximum = remember(values) { values.maxOrNull()?.coerceAtLeast(1L) ?: 1L }
-    val minimum = remember(values) { values.minOrNull() ?: 0L }
-    Canvas(modifier = modifier) {
-        if (values.size == 1) {
-            val y = size.height / 2f
-            drawCircle(color = lineColor, radius = 6.dp.toPx(), center = Offset(size.width / 2f, y))
-        } else {
-            val range = (maximum - minimum).coerceAtLeast(1L).toFloat()
-            val step = size.width / (values.size - 1).toFloat()
-            val points = values.mapIndexed { index, value ->
-                Offset(
-                    x = index * step,
-                    y = size.height - ((value - minimum).toFloat() / range * size.height),
-                )
-            }
-
-            // Draw filled gradient area under the line
-            val fillPath = Path().apply {
-                moveTo(points.first().x, size.height)
-                lineTo(points.first().x, points.first().y)
-                points.drop(1).forEach { point ->
-                    lineTo(point.x, point.y)
-                }
-                lineTo(points.last().x, size.height)
-                close()
-            }
-            drawPath(path = fillPath, brush = fillBrush)
-
-            // Draw line
-            points.zipWithNext().forEach { (start, end) ->
-                drawLine(color = lineColor, start = start, end = end, strokeWidth = 4.dp.toPx())
-            }
-
-            // Draw endpoints/markers
-            points.forEach { point ->
-                drawCircle(color = lineColor, radius = 5.dp.toPx(), center = point)
-            }
         }
     }
 }
@@ -410,9 +630,3 @@ private val StatsPeriod.displayName: String
         StatsPeriod.YEAR_TO_DATE -> "Este año"
         StatsPeriod.ALL_TIME -> "Todo"
     }
-
-private fun formatCents(cents: Long): String =
-    String.format(Locale.US, "%.2f", cents / 100.0)
-
-private fun formatHundredthsCents(value: Long): String =
-    String.format(Locale.US, "%.2f", value / 100.0)

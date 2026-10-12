@@ -19,6 +19,7 @@ class GetDashboardSummaryUseCaseTest {
         val summary = useCase(
             activeVehicle = vehicle,
             fuelRecords = listOf(latestFuel, oldFuel),
+            maintenanceRecords = emptyList(),
             schedules = listOf(overdue, healthy),
             currentDateMs = 0,
         )
@@ -35,6 +36,7 @@ class GetDashboardSummaryUseCaseTest {
         val summary = useCase(
             activeVehicle = null,
             fuelRecords = emptyList(),
+            maintenanceRecords = emptyList(),
             schedules = listOf(schedule(intervalKm = 1_000, lastPerformedKm = 0)),
             currentDateMs = 0,
         )

@@ -3,12 +3,10 @@ package com.example.vehiclemanager.feature.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vehiclemanager.core.domain.ActiveVehicleRepository
-import com.example.vehiclemanager.core.domain.CalculateFuelConsumptionUseCase
-import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.domain.FuelRecordRepository
 import com.example.vehiclemanager.core.domain.GetDashboardSummaryUseCase
 import com.example.vehiclemanager.core.domain.GetUnifiedTimelineUseCase
-import com.example.vehiclemanager.core.domain.MaintenanceRecord
+import com.example.vehiclemanager.core.domain.MaintenanceRecordRepository
 import com.example.vehiclemanager.core.domain.MaintenanceScheduleRepository
 import com.example.vehiclemanager.core.domain.DashboardSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +25,7 @@ import kotlinx.coroutines.flow.stateIn
 class DashboardViewModel @Inject constructor(
     activeVehicleRepository: ActiveVehicleRepository,
     private val fuelRecordRepository: FuelRecordRepository,
+    private val maintenanceRecordRepository: MaintenanceRecordRepository,
     private val maintenanceScheduleRepository: MaintenanceScheduleRepository,
     private val getDashboardSummary: GetDashboardSummaryUseCase,
     private val getUnifiedTimeline: GetUnifiedTimelineUseCase,
@@ -36,20 +35,20 @@ class DashboardViewModel @Inject constructor(
             vehicle?.let { activeVehicle ->
                 combine(
                     fuelRecordRepository.observeFuelRecords(activeVehicle.id),
+                    maintenanceRecordRepository.observeMaintenanceRecords(activeVehicle.id),
                     maintenanceScheduleRepository.observeSchedules(activeVehicle.id),
-                ) { fuelRecords, schedules ->
+                ) { fuelRecords, maintenanceRecords, schedules ->
                     val summary = getDashboardSummary(
                         activeVehicle = activeVehicle,
                         fuelRecords = fuelRecords,
+                        maintenanceRecords = maintenanceRecords,
                         schedules = schedules,
                         currentDateMs = System.currentTimeMillis(),
                     )
-                    // Also get maintenance records for timeline
-                    val maintenanceRecords = emptyList<MaintenanceRecord>() // TODO: Add maintenance record repository
                     val timeline = getUnifiedTimeline(fuelRecords, maintenanceRecords)
                     Pair(summary, timeline)
                 }
-            } ?: flowOf(Pair(getDashboardSummary(null, emptyList(), emptyList(), System.currentTimeMillis()), emptyList()))
+            } ?: flowOf(Pair(getDashboardSummary(null, emptyList(), emptyList(), emptyList(), System.currentTimeMillis()), emptyList()))
         }
         .map { (summary, timeline) ->
             DashboardUiState(
@@ -72,7 +71,7 @@ data class DashboardUiState(
     val activeVehicle get() = summary.activeVehicle
     val latestFuelRecord get() = summary.latestFuelRecord
     val averageConsumptionLitersPer100KmX100 get() = summary.averageConsumptionLitersPer100KmX100
-    val costPerKmEurosX1000 get() = summary.costPerKmEurosX1000
+    val costPerKmCentsX100 get() = summary.costPerKmCentsX100
     val nextRefuelEstimate get() = summary.nextRefuelEstimate
     val maintenanceAlerts get() = summary.maintenanceAlerts
 }

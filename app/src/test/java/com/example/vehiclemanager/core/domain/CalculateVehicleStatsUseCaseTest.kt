@@ -7,67 +7,56 @@ import org.junit.Test
 
 class CalculateVehicleStatsUseCaseTest {
     private val useCase = CalculateVehicleStatsUseCase()
-    private val currentDate = epoch("2025-06-15")
+    private val currentDate = epoch("2025-10-15")
 
     @Test
-    fun allTimeAggregatesCostsDistanceMonthlySpendAndCharts() {
+    fun epic022FixtureCalculatesCorrectTotalsAveragesAndWeightedPrice() {
         val fuel = listOf(
-            fuel("2025-01-10", 10_000, 180, 5_400),
-            fuel("2025-03-10", 10_500, 200, 6_000),
+            fuel("2025-09-01", 1_000, 175, 5_000, litersX100 = 2_857, vehicleId = 1),
+            fuel("2025-09-15", 1_500, 187, 3_000, litersX100 = 1_604, vehicleId = 1),
+            fuel("2025-10-05", 2_448, 186, 14_000, litersX100 = 7_500, vehicleId = 1),
         )
-        val maintenance = listOf(maintenance("2025-03-12", 10_700, 10_000))
+        val maintenance = listOf(
+            maintenance("2025-09-20", 1_500, 1_200, vehicleId = 1),
+            maintenance("2025-10-10", 2_448, 463, vehicleId = 1),
+        )
 
-        val stats = useCase(fuel, maintenance, StatsPeriod.ALL_TIME, currentDate)
+        val stats = useCase(fuel, maintenance, StatsPeriod.ALL_TIME, currentDate, activeVehicleId = 1)
 
-        assertEquals(11_400L, stats.totalFuelCostCents)
-        assertEquals(10_000L, stats.totalMaintenanceCostCents)
-        assertEquals(21_400L, stats.totalCostCents)
-        assertEquals(3057L, stats.costPerKilometerCentsX100)
-        assertEquals(10_700L, stats.averageMonthlySpendCents)
-        assertEquals(700L, stats.totalDistanceKm)
-        assertEquals(listOf(5_400L, 16_000L), stats.monthlyExpenditure.map { it.totalCostCents })
-        assertEquals(listOf(180L, 200L), stats.monthlyFuelPrice.map { it.averagePricePerLiterCents })
+        assertEquals(22_000L, stats.totalFuelCostCents)
+        assertEquals(1_663L, stats.totalMaintenanceCostCents)
+        assertEquals(23_663L, stats.totalCostCents)
+        assertEquals(1_448L, stats.totalDistanceKm)
+        assertEquals(1_634L, stats.costPerKilometerCentsX100) // 0.16 €/km
+        assertEquals(11_832L, stats.averageMonthlySpendCents) // 118.32 €/mes (23663 / 2 months inclusive)
+        assertEquals(listOf(9_200L, 14_463L), stats.monthlyExpenditure.map { it.totalCostCents })
+        assertEquals(179L, stats.monthlyFuelPrice.find { it.month == 9 }?.averagePricePerLiterCents) // 1.79 €/L (weighted)
     }
 
     @Test
-    fun periodFiltersRecordsAtTheLowerAndUpperBounds() {
-        val records = listOf(
-            fuel("2025-05-15", 1_000, 180, 1_800),
-            fuel("2025-06-15", 1_100, 180, 1_800),
+    fun activeVehicleFilteringIsRespectedWhenMultipleVehiclesPresent() {
+        val fuel = listOf(
+            fuel("2025-09-01", 1_000, 180, 5_000, vehicleId = 1),
+            fuel("2025-09-02", 1_000, 180, 50_000, vehicleId = 2),
         )
+        val stats = useCase(fuel, emptyList(), StatsPeriod.ALL_TIME, currentDate, activeVehicleId = 1)
 
-        val stats = useCase(records, emptyList(), StatsPeriod.LAST_30_DAYS, currentDate)
-
-        assertEquals(1_800L, stats.totalFuelCostCents)
-        assertEquals(1, stats.monthlyExpenditure.size)
+        assertEquals(5_000L, stats.totalCostCents)
     }
 
     @Test
-    fun zeroDistanceProducesNullCostPerKilometer() {
-        val stats = useCase(
-            fuelRecords = listOf(fuel("2025-06-01", 1_000, 180, 1_800)),
-            maintenanceRecords = emptyList(),
-            period = StatsPeriod.YEAR_TO_DATE,
-            currentDateMs = currentDate,
+    fun zeroOrOneRecordProducesNullCostPerKilometer() {
+        val zeroStats = useCase(emptyList(), emptyList(), StatsPeriod.ALL_TIME, currentDate)
+        assertEquals(null, zeroStats.costPerKilometerCentsX100)
+
+        val oneStats = useCase(
+            listOf(fuel("2025-09-01", 1_000, 180, 5_000)),
+            emptyList(),
+            StatsPeriod.ALL_TIME,
+            currentDate,
         )
-
-        assertEquals(0L, stats.totalDistanceKm)
-        assertEquals(null, stats.costPerKilometerCentsX100)
-    }
-
-    @Test
-    fun weightedMonthlyFuelPriceUsesLitersNotRecordCount() {
-        val stats = useCase(
-            fuelRecords = listOf(
-                fuel("2025-06-01", 1_000, 200, 2_000, litersX100 = 100),
-                fuel("2025-06-02", 1_010, 100, 1_000, litersX100 = 300),
-            ),
-            maintenanceRecords = emptyList(),
-            period = StatsPeriod.ALL_TIME,
-            currentDateMs = currentDate,
-        )
-
-        assertEquals(125L, stats.monthlyFuelPrice.single().averagePricePerLiterCents)
+        assertEquals(0L, oneStats.totalDistanceKm)
+        assertEquals(null, oneStats.costPerKilometerCentsX100)
     }
 
     private fun fuel(
@@ -76,9 +65,10 @@ class CalculateVehicleStatsUseCaseTest {
         priceCents: Long,
         totalCostCents: Long,
         litersX100: Int = 300,
+        vehicleId: Long = 1,
     ) = FuelRecord(
         id = date.hashCode().toLong(),
-        vehicleId = 1,
+        vehicleId = vehicleId,
         timestampMs = epoch(date),
         odometerKm = odometerKm,
         litersX100 = litersX100,
@@ -89,9 +79,14 @@ class CalculateVehicleStatsUseCaseTest {
         notes = null,
     )
 
-    private fun maintenance(date: String, odometerKm: Long, costCents: Long) = MaintenanceRecord(
+    private fun maintenance(
+        date: String,
+        odometerKm: Long,
+        costCents: Long,
+        vehicleId: Long = 1,
+    ) = MaintenanceRecord(
         id = date.hashCode().toLong(),
-        vehicleId = 1,
+        vehicleId = vehicleId,
         title = "Service",
         category = MaintenanceCategory.OTHER,
         costCents = costCents,

@@ -50,6 +50,7 @@ import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.domain.NextRefuelEstimate
 import com.example.vehiclemanager.core.domain.TimelineEvent
 import com.example.vehiclemanager.core.domain.UpcomingService
+import com.example.vehiclemanager.core.ui.Formatters
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
@@ -162,7 +163,7 @@ private fun DashboardContent(
             QuickSummarySection(
                 latestFuel = uiState.latestFuelRecord,
                 consumptionX100 = uiState.averageConsumptionLitersPer100KmX100,
-                costPerKmEurosX1000 = uiState.costPerKmEurosX1000,
+                costPerKmCentsX100 = uiState.costPerKmCentsX100,
                 alerts = uiState.maintenanceAlerts,
                 onViewAll = onViewAll,
             )
@@ -405,7 +406,7 @@ private fun NextRefuelEstimateCard(
 private fun QuickSummarySection(
     latestFuel: FuelRecord?,
     consumptionX100: Long?,
-    costPerKmEurosX1000: Long?,
+    costPerKmCentsX100: Long?,
     alerts: List<UpcomingService>,
     onViewAll: () -> Unit,
 ) {
@@ -459,8 +460,8 @@ private fun QuickSummarySection(
                 icon = AppIcons.IconTrending,
                 chipBrush = AppTheme.gradients.barCurrent,
                 label = "Coste por kilómetro",
-                value = if (costPerKmEurosX1000 != null) "${formatDecimalThousandths(costPerKmEurosX1000)} €/km" else "Sin datos suficientes",
-                caption = if (costPerKmEurosX1000 != null) "Basado en historial de combustible" else null,
+                value = Formatters.formatCostPerKm(costPerKmCentsX100),
+                caption = if (costPerKmCentsX100 != null) "Basado en coste total (combustible + mantenimiento)" else null,
                 valueColor = AppTheme.semanticColors.cost,
             )
         }
@@ -563,12 +564,6 @@ private fun DashboardActionHub(
 
 private fun formatDecimalHundredths(value: Long): String =
     "${value / 100}.${(value % 100).toString().padStart(2, '0')}"
-
-private fun formatDecimalThousandths(value: Long): String {
-    val euros = value / 1000
-    val thousandths = value % 1000
-    return "$euros.${(thousandths / 10).toString().padStart(2, '0')}"
-}
 
 @Composable
 private fun TimelineSection(
@@ -674,13 +669,13 @@ private fun TimelineItem(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${event.record.litersX100 / 100f} L · ${formatDecimalHundredths(event.record.totalCostCents)} €",
+                            text = "${Formatters.formatLiters(event.record.litersX100)} · ${Formatters.formatMoney(event.record.totalCostCents)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (event.record.pricePerLiterCents > 0) {
                             Text(
-                                text = "${formatDecimalHundredths(event.record.pricePerLiterCents)} ¢/L",
+                                text = Formatters.formatFuelPrice(event.record.pricePerLiterCents),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -703,7 +698,7 @@ private fun TimelineItem(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${formatDecimalHundredths(event.record.costCents)} €",
+                            text = Formatters.formatMoney(event.record.costCents),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -719,15 +714,15 @@ private fun TimelineItem(
 
             // Amount in semantic cost color
             Text(
-                text = "${formatDecimalHundredths(when (event) {
+                text = Formatters.formatMoney(when (event) {
                     is TimelineEvent.FuelRecordEvent -> event.record.totalCostCents
                     is TimelineEvent.MaintenanceRecordEvent -> event.record.costCents
-                })} €",
+                }),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = AppTheme.semanticColors.cost,
                 textAlign = TextAlign.End,
-                modifier = Modifier.width(60.dp),
+                modifier = Modifier.width(80.dp),
             )
         }
     }

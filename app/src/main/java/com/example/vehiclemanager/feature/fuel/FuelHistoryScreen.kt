@@ -1,6 +1,7 @@
 package com.example.vehiclemanager.feature.fuel
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,32 +18,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vehiclemanager.core.domain.FuelRecord
+import com.example.vehiclemanager.core.ui.Formatters
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.theme.AppIcons
@@ -50,156 +45,113 @@ import com.example.vehiclemanager.core.ui.theme.AppTheme
 import java.text.DateFormat
 import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FuelHistoryScreen(
-    onNavigateBack: (() -> Unit)? = null,
     onAddFuel: () -> Unit = {},
-    onOpenDetail: (Long) -> Unit,
+    onOpenDetail: (Long) -> Unit = {},
     viewModel: FuelHistoryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(uiState.error) {
-        if (uiState.error != null) viewModel.consumeError()
-    }
-
     VehicleManagerScreen(
         topBar = {
             VehicleManagerAppBar(
-                title = uiState.activeVehicle?.name?.let { "$it · Combustible" } ?: "Historial de combustible",
-                actions = {
-                    onNavigateBack?.let { onBack ->
-                        TextButton(onClick = onBack) {
-                            Text(text = "Volver")
-                        }
-                    }
-                },
+                title = uiState.activeVehicle?.name?.let { "$it · Historial de combustible" } ?: "Historial de combustible",
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddFuel) {
-                Icon(imageVector = AppIcons.ActionFuel, contentDescription = "Añadir repostaje")
+            if (uiState.activeVehicle != null) {
+                FloatingActionButton(
+                    onClick = onAddFuel,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Añadir repostaje")
+                }
             }
         },
     ) {
-        when {
-            uiState.isLoading -> LoadingContent()
-            uiState.activeVehicle == null -> EmptyFuelContent("Añade un vehículo para ver el historial de combustible.")
-            uiState.records.isEmpty() -> EmptyFuelContent("Aún no hay repostajes registrados.")
-            else -> FuelRecordList(
-                records = uiState.records,
-                onOpenDetail = onOpenDetail,
-                onRequestDelete = viewModel::requestDelete,
-            )
-        }
-    }
-
-    uiState.recordPendingDeletion?.let {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissDelete,
-            title = { Text(text = "¿Eliminar repostaje?") },
-            text = { Text(text = "Este registro de combustible se eliminará permanentemente.") },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmDelete) {
-                    Text(text = "Eliminar", color = MaterialTheme.colorScheme.error)
+        if (uiState.activeVehicle == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppTheme.gradients.screenBackground)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.LocalGasStation,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "Añade un vehículo para ver el historial.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissDelete) {
-                    Text(text = "Cancelar")
+            }
+        } else if (uiState.records.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppTheme.gradients.screenBackground)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = AppIcons.IconFuelDrop,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "Sin registros de combustible",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Text(
+                        text = "Pulsa el botón + para añadir tu primer repostaje.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
-            },
-        )
-    }
-}
-
-@Composable
-private fun LoadingContent() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppTheme.gradients.screenBackground),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun EmptyFuelContent(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppTheme.gradients.screenBackground)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = message, style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FuelRecordList(
-    records: List<FuelRecord>,
-    onOpenDetail: (Long) -> Unit,
-    onRequestDelete: (FuelRecord) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppTheme.gradients.screenBackground),
-        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(records, key = FuelRecord::id) { record ->
-            val dismissState = rememberSwipeToDismissBoxState(
-                confirmValueChange = { dismissValue ->
-                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                        onRequestDelete(record)
-                    }
-                    false
-                },
-            )
-            SwipeToDismissBox(
-                state = dismissState,
-                enableDismissFromStartToEnd = false,
-                backgroundContent = { DeleteBackground() },
-                content = {
-                    FuelRecordCard(record = record, onClick = { onOpenDetail(record.id) })
-                },
-            )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppTheme.gradients.screenBackground),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(uiState.records, key = { it.id }) { record ->
+                    FuelRecordItem(
+                        record = record,
+                        onClick = { onOpenDetail(record.id) },
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun DeleteBackground() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = "Eliminar registro de combustible" }
-            .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        Text(
-            text = "Eliminar",
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
-private fun FuelRecordCard(
+private fun FuelRecordItem(
     record: FuelRecord,
     onClick: () -> Unit,
 ) {
     val dateFormatter = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
+
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -207,10 +159,9 @@ private fun FuelRecordCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Vertical side bar with teal fuel gradient
             Box(
                 modifier = Modifier
                     .width(4.dp)
@@ -218,15 +169,6 @@ private fun FuelRecordCard(
                     .background(AppTheme.gradients.fuelChip, CircleShape),
             )
             Spacer(modifier = Modifier.width(12.dp))
-
-            // Teal Fuel Drop Icon
-            Icon(
-                imageVector = AppIcons.IconFuelDrop,
-                contentDescription = null,
-                tint = AppTheme.semanticColors.fuel,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -236,7 +178,7 @@ private fun FuelRecordCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "${formatLiters(record.litersX100)} · ${record.odometerKm} km",
+                    text = "${Formatters.formatLiters(record.litersX100)} · ${record.odometerKm} km",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -244,7 +186,7 @@ private fun FuelRecordCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${formatCents(record.totalCostCents)} €",
+                    text = Formatters.formatMoney(record.totalCostCents),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = AppTheme.semanticColors.cost,
@@ -262,12 +204,3 @@ private fun FuelRecordCard(
         }
     }
 }
-
-private fun formatLiters(litersX100: Int): String {
-    val whole = litersX100 / 100
-    val fraction = (litersX100 % 100).toString().padStart(2, '0')
-    return "$whole.$fraction L"
-}
-
-private fun formatCents(cents: Long): String =
-    "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
