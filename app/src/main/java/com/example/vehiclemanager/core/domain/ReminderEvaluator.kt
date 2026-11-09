@@ -13,11 +13,18 @@ data class ReminderItem(
     val isFuel: Boolean = false,
 )
 
+enum class ReminderStage {
+    LEAD,
+    DUE,
+    OVERDUE,
+}
+
 enum class ReminderEvaluationOutcome {
-    DUE_BY_DATE,
-    DUE_BY_KM,
+    STAGE_LEAD,
+    STAGE_DUE,
+    STAGE_OVERDUE,
     NOT_YET_DUE,
-    ALREADY_NOTIFIED_TODAY,
+    ALREADY_NOTIFIED_FOR_STAGE,
     TOGGLED_OFF,
 }
 
@@ -25,6 +32,7 @@ data class ReminderEvaluationResult(
     val scheduleId: Long,
     val outcome: ReminderEvaluationOutcome,
     val shouldNotify: Boolean,
+    val currentStage: ReminderStage? = null,
 )
 
 object ReminderEvaluator {
@@ -36,7 +44,9 @@ object ReminderEvaluator {
         leadKm: Long,
         fuelNotificationsEnabled: Boolean,
         tirePressureNotificationsEnabled: Boolean,
-        lastNotifiedDate: LocalDate? = null,
+        lastNotifiedStage: ReminderStage? = null,
+        lastNotifiedDueDate: LocalDate? = null,
+        lastNotifiedDueOdometer: Long? = null,
     ): ReminderEvaluationResult {
         // 1. Toggle-off check
         if (item.isFuel && !fuelNotificationsEnabled) {
@@ -46,29 +56,63 @@ object ReminderEvaluator {
             return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.TOGGLED_OFF, false)
         }
 
-        // 2. Already notified today check
-        if (lastNotifiedDate != null && lastNotifiedDate == today) {
-            return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.ALREADY_NOTIFIED_TODAY, false)
+        // 2. Target change check (if target changed, reset lastNotifiedStage)
+        val targetChanged = lastNotifiedDueDate != item.dueDate || lastNotifiedDueOdometer != item.dueOdometer
+        val effectiveLastNotifiedStage = if (targetChanged) null else lastNotifiedStage
+
+        // 3. Determine Date stage
+        val dateStage = when {
+            item.dueDate == null -> null
+            item.dueDate.isBefore(today) -> ReminderStage.OVERDUE
+            item.dueDate.isEqual(today) -> ReminderStage.DUE
+            item.dueDate.isAfter(today) && !item.dueDate.isAfter(today.plusDays(leadDays.toLong())) -> ReminderStage.LEAD
+            else -> null
         }
 
-        // 3. Date-based check
-        val dueDate = item.dueDate
-        if (dueDate != null) {
-            val thresholdDate = today.plusDays(leadDays.toLong())
-            if (!dueDate.isAfter(thresholdDate)) { // dueDate <= today + leadDays (includes overdue)
-                return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.DUE_BY_DATE, true)
+        // 4. Determine Odometer stage
+        val kmStage = when {
+            item.dueOdometer == null -> null
+            currentOdometer > item.dueOdometer -> ReminderStage.OVERDUE
+            currentOdometer == item.dueOdometer -> ReminderStage.DUE
+            currentOdometer >= item.dueOdometer - leadKm -> ReminderStage.LEAD
+            else -> null
+        }
+
+        // 5. Combine stages (most advanced wins: OVERDUE > DUE > LEAD)
+        val stages = listOfNotNull(dateStage, kmStage)
+        val currentStage = when {
+            stages.contains(ReminderStage.OVERDUE) -> ReminderStage.OVERDUE
+            stages.contains(ReminderStage.DUE) -> ReminderStage.DUE
+            stages.contains(ReminderStage.LEAD) -> ReminderStage.LEAD
+            else -> null
+        }
+
+        if (currentStage == null) {
+            return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.NOT_YET_DUE, false, null)
+        }
+
+        // 6. Compare with effective last notified stage
+        val shouldNotify = if (effectiveLastNotifiedStage == null) {
+            true
+        } else {
+            currentStage.ordinal > effectiveLastNotifiedStage.ordinal
+        }
+
+        val outcome = if (shouldNotify) {
+            when (currentStage) {
+                ReminderStage.LEAD -> ReminderEvaluationOutcome.STAGE_LEAD
+                ReminderStage.DUE -> ReminderEvaluationOutcome.STAGE_DUE
+                ReminderStage.OVERDUE -> ReminderEvaluationOutcome.STAGE_OVERDUE
             }
+        } else {
+            ReminderEvaluationOutcome.ALREADY_NOTIFIED_FOR_STAGE
         }
 
-        // 4. Km-based check
-        val dueOdometer = item.dueOdometer
-        if (dueOdometer != null) {
-            val thresholdOdometer = dueOdometer - leadKm
-            if (currentOdometer >= thresholdOdometer) { // currentOdometer >= dueOdometer - leadKm (includes overdue)
-                return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.DUE_BY_KM, true)
-            }
-        }
-
-        return ReminderEvaluationResult(item.scheduleId, ReminderEvaluationOutcome.NOT_YET_DUE, false)
+        return ReminderEvaluationResult(
+            scheduleId = item.scheduleId,
+            outcome = outcome,
+            shouldNotify = shouldNotify,
+            currentStage = currentStage,
+        )
     }
 }

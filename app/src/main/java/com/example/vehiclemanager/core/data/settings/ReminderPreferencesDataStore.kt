@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.vehiclemanager.core.domain.ReminderPreferences
+import com.example.vehiclemanager.core.domain.StoredStageState
 import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +38,7 @@ class ReminderPreferencesDataStore @Inject constructor(
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val LAST_CHECK_LOG_JSON = stringPreferencesKey("last_check_log_json")
+        val LAST_NOTIFIED_STAGES_JSON = stringPreferencesKey("last_notified_stages_json")
     }
 
     val reminderPreferences: Flow<ReminderPreferences> = context.reminderPreferencesDataStore.data.map { preferences ->
@@ -58,10 +60,44 @@ class ReminderPreferencesDataStore @Inject constructor(
         runCatching { Json.decodeFromString<ReminderCheckLog>(jsonStr) }.getOrNull()
     }
 
+    val lastNotifiedStages: Flow<Map<Long, StoredStageState>> = context.reminderPreferencesDataStore.data.map { preferences ->
+        val jsonStr = preferences[PreferencesKeys.LAST_NOTIFIED_STAGES_JSON] ?: return@map emptyMap()
+        runCatching {
+            Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(StoredStageState.serializer()), jsonStr).associateBy { it.scheduleId }
+        }.getOrNull() ?: emptyMap()
+    }
+
     suspend fun saveLastCheckLog(log: ReminderCheckLog) {
         val jsonStr = Json.encodeToString(ReminderCheckLog.serializer(), log)
         context.reminderPreferencesDataStore.edit { preferences ->
             preferences[PreferencesKeys.LAST_CHECK_LOG_JSON] = jsonStr
+        }
+    }
+
+    suspend fun saveLastNotifiedStage(state: StoredStageState) {
+        context.reminderPreferencesDataStore.edit { preferences ->
+            val currentMap = runCatching {
+                val jsonStr = preferences[PreferencesKeys.LAST_NOTIFIED_STAGES_JSON]
+                if (jsonStr != null) Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(StoredStageState.serializer()), jsonStr).associateBy { it.scheduleId }.toMutableMap()
+                else mutableMapOf()
+            }.getOrNull() ?: mutableMapOf()
+
+            currentMap[state.scheduleId] = state
+            preferences[PreferencesKeys.LAST_NOTIFIED_STAGES_JSON] = Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(StoredStageState.serializer()), currentMap.values.toList())
+        }
+    }
+
+    suspend fun resetLastNotifiedStage(scheduleId: Long) {
+        context.reminderPreferencesDataStore.edit { preferences ->
+            val currentMap = runCatching {
+                val jsonStr = preferences[PreferencesKeys.LAST_NOTIFIED_STAGES_JSON]
+                if (jsonStr != null) Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(StoredStageState.serializer()), jsonStr).associateBy { it.scheduleId }.toMutableMap()
+                else mutableMapOf()
+            }.getOrNull() ?: mutableMapOf()
+
+            if (currentMap.remove(scheduleId) != null) {
+                preferences[PreferencesKeys.LAST_NOTIFIED_STAGES_JSON] = Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(StoredStageState.serializer()), currentMap.values.toList())
+            }
         }
     }
 

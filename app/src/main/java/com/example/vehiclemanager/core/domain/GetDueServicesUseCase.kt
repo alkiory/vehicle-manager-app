@@ -1,12 +1,10 @@
 package com.example.vehiclemanager.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.LocalDate
-import java.time.Period
 import javax.inject.Inject
 
 /**
@@ -14,27 +12,31 @@ import javax.inject.Inject
  */
 class GetDueServicesUseCase @Inject constructor(
     private val maintenanceScheduleRepository: MaintenanceScheduleRepository,
+    private val vehicleRepository: VehicleRepository,
+    private val fuelRecordRepository: FuelRecordRepository,
 ) {
     /**
-     * Returns a flow of due service notifications.
-     * Filters out dismissed schedules and only includes schedules for active vehicles.
+     * Returns a flow of due service notifications for all vehicles.
      */
     fun getDueServices(): Flow<List<DueServiceNotification>> {
-        return maintenanceScheduleRepository.observeSchedulesForActiveVehicle().map { schedules ->
+        return combine(
+            maintenanceScheduleRepository.observeAllSchedules(),
+            vehicleRepository.vehicles,
+            fuelRecordRepository.observeRecentPrices()
+        ) { schedules, vehicles, _ ->
+            val vehicleMap = vehicles.associateBy { it.id }
             schedules.mapNotNull { schedule ->
-                val vehicleOdometer = getVehicleOdometer(schedule.vehicleId)
-                if (isDismissed(schedule) || !isDueOrUpcoming(schedule, vehicleOdometer)) {
-                    return@mapNotNull null
-                }
-                val vehicle = getVehicleInfo(schedule.vehicleId)
+                val vehicle = vehicleMap[schedule.vehicleId]
+                val currentOdometer = vehicle?.primaryOdometerKm ?: 0L
+                
                 DueServiceNotification(
                     scheduleId = schedule.id,
                     vehicleId = schedule.vehicleId,
                     vehicleName = vehicle?.name ?: "Vehículo desconocido",
                     serviceTitle = schedule.serviceTitle,
-                    dueDateMs = calculateNextDueDate(schedule, vehicleOdometer),
-                    dueOdometer = calculateNextDueOdometer(schedule, vehicleOdometer),
-                    status = determineServiceStatus(schedule, vehicleOdometer),
+                    dueDateMs = calculateNextDueDate(schedule, currentOdometer),
+                    dueOdometer = calculateNextDueOdometer(schedule, currentOdometer),
+                    status = determineServiceStatus(schedule, currentOdometer),
                 )
             }.sortedWith(
                 compareBy<DueServiceNotification> { it.status }
@@ -43,42 +45,10 @@ class GetDueServicesUseCase @Inject constructor(
         }
     }
 
-    private fun isDismissed(schedule: MaintenanceSchedule): Boolean {
-        return schedule.lastPerformedDateMs == null
-    }
-
-    private fun getVehicleOdometer(vehicleId: Long): Long {
-        // Get the latest odometer from fuel records for this vehicle
-        return 0L // Default to 0 if no data
-    }
-
-    private fun getVehicleInfo(vehicleId: Long): Vehicle? {
-        // This would be provided by a repository in production
-        return null
-    }
-
-    private fun isDueOrUpcoming(
-        schedule: MaintenanceSchedule,
-        currentOdometer: Long,
-    ): Boolean {
-        val nextDueKm = calculateNextDueOdometer(schedule, currentOdometer)
-        val nextDueDate = calculateNextDueDate(schedule, currentOdometer)
-
-        val now = System.currentTimeMillis()
-        val daysUntilDue = (nextDueDate - now) / (24 * 60 * 60 * 1000)
-
-        // Service is due or upcoming if:
-        // - Odometer threshold reached, OR
-        // - Date threshold reached (within reminder window or overdue)
-        return currentOdometer >= nextDueKm ||
-                daysUntilDue <= 30L // Within 30 days counts as upcoming
-    }
-
     fun calculateNextDueDate(
         schedule: MaintenanceSchedule,
         currentOdometer: Long,
     ): Long {
-        // Calculate based on date interval
         if (schedule.intervalMonths != null && schedule.lastPerformedDateMs != null) {
             val lastDate = Instant.ofEpochMilli(schedule.lastPerformedDateMs)
                 .atZone(ZoneId.systemDefault())
@@ -86,7 +56,9 @@ class GetDueServicesUseCase @Inject constructor(
             val nextDate = lastDate.plusMonths(schedule.intervalMonths.toLong())
             return nextDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
         }
-        // Default to 30 days from now if no date info
+        if (schedule.lastPerformedDateMs != null) {
+            return schedule.lastPerformedDateMs + (30L * 24 * 60 * 60 * 1000)
+        }
         return System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
     }
 
@@ -97,8 +69,10 @@ class GetDueServicesUseCase @Inject constructor(
         if (schedule.intervalKm != null && schedule.lastPerformedKm != null) {
             return schedule.lastPerformedKm + schedule.intervalKm
         }
-        // Default to current + interval if available
-        return currentOdometer + (schedule.intervalKm ?: 10000L)
+        if (schedule.intervalKm != null) {
+            return currentOdometer + schedule.intervalKm
+        }
+        return currentOdometer + 10000L
     }
 
     fun determineServiceStatus(

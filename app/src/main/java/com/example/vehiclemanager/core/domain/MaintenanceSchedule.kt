@@ -18,6 +18,11 @@ interface MaintenanceScheduleRepository {
      */
     fun observeSchedulesForActiveVehicle(): kotlinx.coroutines.flow.Flow<List<MaintenanceSchedule>>
 
+    /**
+     * Observe all schedules across all vehicles.
+     */
+    fun observeAllSchedules(): kotlinx.coroutines.flow.Flow<List<MaintenanceSchedule>>
+
     suspend fun getSchedule(id: Long): MaintenanceSchedule?
 
     suspend fun insertSchedule(schedule: MaintenanceSchedule): Long

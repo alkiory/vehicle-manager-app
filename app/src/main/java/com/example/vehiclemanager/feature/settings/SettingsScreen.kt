@@ -325,7 +325,7 @@ fun SettingsScreen(
                     )
 
                     Text(
-                        text = "Regla de evaluación: Se notifica cuando el kilometraje restante es menor o igual a la distancia de antelación, o la fecha de vencimiento está a menos de los días indicados.",
+                        text = "Regla de evaluación: Política por etapas (Antelación / Vencimiento / Vencido). Se notifica una vez por etapa superada. Si se omitieron etapas (p. ej. app cerrada), se avisa con la más avanzada pendiente. Se reinicia al editar o completar.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),

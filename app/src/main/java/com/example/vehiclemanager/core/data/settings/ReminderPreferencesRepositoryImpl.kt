@@ -16,8 +16,18 @@ class ReminderPreferencesRepositoryImpl @Inject constructor(
 
     override val lastCheckLog: Flow<ReminderCheckLog?> = dataStore.lastCheckLog
 
+    override val lastNotifiedStages: Flow<Map<Long, com.example.vehiclemanager.core.domain.StoredStageState>> = dataStore.lastNotifiedStages
+
     override suspend fun saveLastCheckLog(log: ReminderCheckLog) {
         dataStore.saveLastCheckLog(log)
+    }
+
+    override suspend fun saveLastNotifiedStage(state: com.example.vehiclemanager.core.domain.StoredStageState) {
+        dataStore.saveLastNotifiedStage(state)
+    }
+
+    override suspend fun resetLastNotifiedStage(scheduleId: Long) {
+        dataStore.resetLastNotifiedStage(scheduleId)
     }
 
     override suspend fun setAdvanceDistanceKm(km: Long) {

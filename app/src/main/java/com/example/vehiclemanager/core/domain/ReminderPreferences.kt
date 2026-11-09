@@ -1,5 +1,19 @@
 package com.example.vehiclemanager.core.domain
 
+import kotlinx.serialization.Serializable
+
+/**
+ * Stored last notified stage state for a reminder.
+ */
+@Serializable
+data class StoredStageState(
+    val scheduleId: Long,
+    val stage: String, // "LEAD", "DUE", "OVERDUE"
+    val targetDueDateMs: Long?,
+    val targetDueOdometer: Long?,
+    val timestampMs: Long,
+)
+
 /**
  * User preferences for reminder notifications.
  */

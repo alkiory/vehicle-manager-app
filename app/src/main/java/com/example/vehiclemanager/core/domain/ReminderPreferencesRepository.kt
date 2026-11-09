@@ -18,9 +18,24 @@ interface ReminderPreferencesRepository {
     val lastCheckLog: Flow<ReminderCheckLog?>
 
     /**
+     * Last notified stages per reminder ID.
+     */
+    val lastNotifiedStages: Flow<Map<Long, StoredStageState>>
+
+    /**
      * Save last reminder check log.
      */
     suspend fun saveLastCheckLog(log: ReminderCheckLog)
+
+    /**
+     * Save last notified stage state for a reminder.
+     */
+    suspend fun saveLastNotifiedStage(state: StoredStageState)
+
+    /**
+     * Reset last notified stage for a reminder (e.g. when edited, completed or rescheduled).
+     */
+    suspend fun resetLastNotifiedStage(scheduleId: Long)
 
     /**
      * Update advance distance notification preference.
