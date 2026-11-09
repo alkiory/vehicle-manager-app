@@ -2,6 +2,7 @@ package com.example.vehiclemanager.core.data.settings
 
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,6 +13,12 @@ class ReminderPreferencesRepositoryImpl @Inject constructor(
 ) : ReminderPreferencesRepository {
 
     override val reminderPreferences: Flow<ReminderPreferences> = dataStore.reminderPreferences
+
+    override val lastCheckLog: Flow<ReminderCheckLog?> = dataStore.lastCheckLog
+
+    override suspend fun saveLastCheckLog(log: ReminderCheckLog) {
+        dataStore.saveLastCheckLog(log)
+    }
 
     override suspend fun setAdvanceDistanceKm(km: Long) {
         dataStore.updateAdvanceDistanceKm(km)

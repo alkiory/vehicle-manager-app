@@ -16,4 +16,10 @@ abstract class NotificationDataModule {
     abstract fun bindNotificationPermissionChecker(
         implementation: NotificationPermissionCheckerImpl,
     ): NotificationPermissionChecker
+
+    @Binds
+    @Singleton
+    abstract fun bindNotificationRepository(
+        implementation: NotificationRepositoryImpl,
+    ): NotificationRepository
 }

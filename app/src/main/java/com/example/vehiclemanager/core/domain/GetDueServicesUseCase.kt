@@ -7,11 +7,12 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.LocalDate
 import java.time.Period
+import javax.inject.Inject
 
 /**
  * Use case to retrieve maintenance schedules that are due or upcoming.
  */
-class GetDueServicesUseCase(
+class GetDueServicesUseCase @Inject constructor(
     private val maintenanceScheduleRepository: MaintenanceScheduleRepository,
 ) {
     /**

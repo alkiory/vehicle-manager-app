@@ -7,6 +7,9 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 
 ## [No publicado]
 
+### Corregido
+- Recordatorios: programación diaria persistente, autocorrección al iniciar la app y registro visible de la última comprobación.
+
 ## [0.3.0] - 2026-03-07
 
 ### Añadido

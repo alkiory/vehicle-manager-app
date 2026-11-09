@@ -1,42 +1,59 @@
 package com.example.vehiclemanager.core.data.notification
 
 import android.content.Context
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import java.util.Calendar
+import java.time.Duration
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
 object ReminderScheduler {
-    const val WORK_NAME = "vehicle_reminder_daily_check"
+    const val WORK_NAME = "reminder-daily-check"
 
-    fun schedule(context: Context, notificationTimeHours: Int = 9, notificationTimeMinutes: Int = 0) {
-        val currentTime = Calendar.getInstance()
-        val targetTime = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, notificationTimeHours)
-            set(Calendar.MINUTE, notificationTimeMinutes)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+    fun calculateInitialDelayMs(
+        notificationTimeHours: Int,
+        notificationTimeMinutes: Int,
+        now: ZonedDateTime = ZonedDateTime.now(ZoneId.systemDefault())
+    ): Long {
+        var target = now.withHour(notificationTimeHours)
+            .withMinute(notificationTimeMinutes)
+            .withSecond(0)
+            .withNano(0)
+        if (!target.isAfter(now)) {
+            target = target.plusDays(1)
         }
+        return Duration.between(now, target).toMillis()
+    }
 
-        if (targetTime.before(currentTime) || targetTime == currentTime) {
-            targetTime.add(Calendar.DAY_OF_YEAR, 1)
-        }
-
-        val initialDelayMs = targetTime.timeInMillis - currentTime.timeInMillis
-
-        val workRequest = PeriodicWorkRequestBuilder<ServiceReminderWorker>(
-            24, TimeUnit.HOURS,
-        )
-            .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+    fun schedule(
+        context: Context,
+        notificationTimeHours: Int = 9,
+        notificationTimeMinutes: Int = 0,
+        forceReschedule: Boolean = true,
+    ) {
+        val delayMs = calculateInitialDelayMs(notificationTimeHours, notificationTimeMinutes)
+        val workRequest = OneTimeWorkRequestBuilder<ServiceReminderWorker>()
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
             .build()
 
+        val policy = if (forceReschedule) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+
         WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(
+            .enqueueUniqueWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.REPLACE,
+                policy,
                 workRequest,
             )
+    }
+
+    fun ensureScheduled(
+        context: Context,
+        notificationTimeHours: Int = 9,
+        notificationTimeMinutes: Int = 0,
+    ) {
+        schedule(context, notificationTimeHours, notificationTimeMinutes, forceReschedule = false)
     }
 
     fun cancel(context: Context) {

@@ -1,5 +1,9 @@
 package com.example.vehiclemanager.feature.settings
 
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Context
@@ -179,6 +183,13 @@ fun SettingsScreen(
         )
     }
 
+    if (uiState.showCheckResultsDialog) {
+        CheckResultsDialog(
+            log = uiState.lastCheckLog,
+            onDismiss = viewModel::dismissCheckResultsDialog,
+        )
+    }
+
     VehicleManagerScreen(
         topBar = { VehicleManagerAppBar(title = "Ajustes") },
     ) {
@@ -224,6 +235,9 @@ fun SettingsScreen(
                     NotificationStatusCard(
                         status = uiState.notificationPermissionStatus,
                         nextCheckTimeStr = uiState.nextCheckTimeStr,
+                        isCheckScheduled = uiState.isCheckScheduled,
+                        lastCheckLog = uiState.lastCheckLog,
+                        isRunningManualCheck = uiState.isRunningManualCheck,
                         onRequestPermission = {
                             if (uiState.notificationPermissionStatus == NotificationPermissionStatus.PERMANENTLY_DENIED ||
                                 uiState.notificationPermissionStatus == NotificationPermissionStatus.APP_NOTIFICATIONS_DISABLED
@@ -239,6 +253,8 @@ fun SettingsScreen(
                             }
                         },
                         onSendTestNotification = viewModel::sendTestNotification,
+                        onRunManualCheck = viewModel::runManualCheck,
+                        onRearmScheduler = viewModel::rearmScheduler,
                         modifier = Modifier.padding(top = 12.dp),
                     )
 
@@ -465,8 +481,13 @@ fun SettingsScreen(
 private fun NotificationStatusCard(
     status: NotificationPermissionStatus,
     nextCheckTimeStr: String?,
+    isCheckScheduled: Boolean,
+    lastCheckLog: ReminderCheckLog?,
+    isRunningManualCheck: Boolean,
     onRequestPermission: () -> Unit,
     onSendTestNotification: () -> Unit,
+    onRunManualCheck: () -> Unit,
+    onRearmScheduler: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -523,38 +544,162 @@ private fun NotificationStatusCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (nextCheckTimeStr != null) {
-                Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Next check time row
+            if (isCheckScheduled && nextCheckTimeStr != null) {
                 Text(
                     text = "Próxima comprobación: $nextCheckTimeStr",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary,
                 )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (status != NotificationPermissionStatus.GRANTED) {
-                    Button(
-                        onClick = onRequestPermission,
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Próxima comprobación: Sin comprobación programada",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        Text(text = "Permitir", style = MaterialTheme.typography.labelMedium)
+                    )
+                    TextButton(onClick = onRearmScheduler) {
+                        Text("Reprogramar", style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                OutlinedButton(
-                    onClick = onSendTestNotification,
-                    modifier = Modifier.weight(1f),
+            }
+
+            // Last check log row
+            Spacer(modifier = Modifier.height(4.dp))
+            val lastCheckText = if (lastCheckLog != null) {
+                val formatted = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(lastCheckLog.timestampMs))
+                "Última comprobación: $formatted · ${lastCheckLog.evaluatedCount} evaluados · ${lastCheckLog.postedCount} avisos"
+            } else {
+                "Última comprobación: Sin comprobaciones previas"
+            }
+            Text(
+                text = lastCheckText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(text = "Probar notificación", style = MaterialTheme.typography.labelMedium)
+                    if (status != NotificationPermissionStatus.GRANTED) {
+                        Button(
+                            onClick = onRequestPermission,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(text = "Permitir", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onSendTestNotification,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(text = "Probar notificación", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                Button(
+                    onClick = onRunManualCheck,
+                    enabled = !isRunningManualCheck,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (isRunningManualCheck) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(text = "Comprobar ahora", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun CheckResultsDialog(
+    log: ReminderCheckLog?,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Informe de comprobación") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (log == null || log.itemResults.isEmpty()) {
+                    Text(
+                        text = log?.skipReasonSummary ?: "No hay servicios o avisos pendientes de evaluar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    log.itemResults.forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "${item.vehicleName} — ${item.serviceTitle}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    text = item.dueInfo,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (item.isNotified) Icons.Default.CheckCircle else Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = if (item.isNotified) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = item.resultReason,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (item.isNotified) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        },
+    )
 }
 
 @Composable

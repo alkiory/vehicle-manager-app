@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.core.domain
 
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -10,6 +11,16 @@ interface ReminderPreferencesRepository {
      * Current reminder preferences as a Flow.
      */
     val reminderPreferences: Flow<ReminderPreferences>
+
+    /**
+     * Last reminder check log.
+     */
+    val lastCheckLog: Flow<ReminderCheckLog?>
+
+    /**
+     * Save last reminder check log.
+     */
+    suspend fun saveLastCheckLog(log: ReminderCheckLog)
 
     /**
      * Update advance distance notification preference.

@@ -8,10 +8,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.vehiclemanager.core.domain.ReminderPreferences
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +36,7 @@ class ReminderPreferencesDataStore @Inject constructor(
         val VIBRATE_ON_NOTIFICATION = booleanPreferencesKey("vibrate_on_notification")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
+        val LAST_CHECK_LOG_JSON = stringPreferencesKey("last_check_log_json")
     }
 
     val reminderPreferences: Flow<ReminderPreferences> = context.reminderPreferencesDataStore.data.map { preferences ->
@@ -47,6 +51,18 @@ class ReminderPreferencesDataStore @Inject constructor(
             onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
             notificationPermissionAsked = preferences[PreferencesKeys.NOTIFICATION_PERMISSION_ASKED] ?: false,
         )
+    }
+
+    val lastCheckLog: Flow<ReminderCheckLog?> = context.reminderPreferencesDataStore.data.map { preferences ->
+        val jsonStr = preferences[PreferencesKeys.LAST_CHECK_LOG_JSON] ?: return@map null
+        runCatching { Json.decodeFromString<ReminderCheckLog>(jsonStr) }.getOrNull()
+    }
+
+    suspend fun saveLastCheckLog(log: ReminderCheckLog) {
+        val jsonStr = Json.encodeToString(ReminderCheckLog.serializer(), log)
+        context.reminderPreferencesDataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_CHECK_LOG_JSON] = jsonStr
+        }
     }
 
     suspend fun updateAdvanceDistanceKm(km: Long) {

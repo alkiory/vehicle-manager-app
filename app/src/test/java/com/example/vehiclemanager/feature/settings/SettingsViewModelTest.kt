@@ -2,12 +2,18 @@ package com.example.vehiclemanager.feature.settings
 
 import androidx.test.core.app.ApplicationProvider
 import com.example.vehiclemanager.core.data.notification.NotificationManagerImpl
+import com.example.vehiclemanager.core.data.notification.NotificationRepository
+import com.example.vehiclemanager.core.domain.GetDueServicesUseCase
+import com.example.vehiclemanager.core.domain.MaintenanceSchedule
+import com.example.vehiclemanager.core.domain.MaintenanceScheduleRepository
 import com.example.vehiclemanager.core.domain.ReminderPreferences
 import com.example.vehiclemanager.core.domain.ReminderPreferencesRepository
 import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
 import com.example.vehiclemanager.core.domain.notification.NotificationPermissionChecker
 import com.example.vehiclemanager.core.domain.notification.NotificationPermissionStatus
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
+import com.example.vehiclemanager.core.domain.notification.RunReminderCheckUseCase
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -42,6 +49,7 @@ class SettingsViewModelTest {
     private lateinit var notificationManager: NotificationManagerImpl
     private lateinit var navigationGuard: NavigationGuard
     private lateinit var formDirtyStateHolder: FormDirtyStateHolder
+    private lateinit var runReminderCheckUseCase: RunReminderCheckUseCase
     private lateinit var viewModel: SettingsViewModel
 
     @Before
@@ -53,6 +61,19 @@ class SettingsViewModelTest {
         notificationManager = NotificationManagerImpl(ApplicationProvider.getApplicationContext())
         navigationGuard = NavigationGuard()
         formDirtyStateHolder = FormDirtyStateHolder()
+
+        val fakeScheduleRepo = FakeMaintenanceScheduleRepository()
+        val getDueServicesUseCase = GetDueServicesUseCase(fakeScheduleRepo)
+        val fakeNotificationRepo = FakeNotificationRepository()
+
+        runReminderCheckUseCase = RunReminderCheckUseCase(
+            context = ApplicationProvider.getApplicationContext(),
+            getDueServicesUseCase = getDueServicesUseCase,
+            notificationManager = notificationManager,
+            notificationRepository = fakeNotificationRepo,
+            reminderPreferencesRepository = fakeReminderRepo,
+        )
+
         viewModel = SettingsViewModel(
             context = ApplicationProvider.getApplicationContext(),
             themePreferenceRepository = fakeThemeRepo,
@@ -61,6 +82,7 @@ class SettingsViewModelTest {
             formDirtyStateHolder = formDirtyStateHolder,
             permissionChecker = fakePermissionChecker,
             notificationManager = notificationManager,
+            runReminderCheckUseCase = runReminderCheckUseCase,
         )
     }
 
@@ -184,6 +206,21 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.uiState.value.showRationaleDialog)
     }
+
+    @Test
+    fun runManualCheck_executesCheck_updatesLastLog_andShowsResultsDialog() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.runManualCheck()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.showCheckResultsDialog)
+        assertNotNull(state.lastCheckLog)
+
+        viewModel.dismissCheckResultsDialog()
+        assertFalse(viewModel.uiState.value.showCheckResultsDialog)
+    }
 }
 
 private class FakeThemePreferenceRepository : ThemePreferenceRepository {
@@ -208,8 +245,15 @@ private class FakeReminderPreferencesRepository : ReminderPreferencesRepository 
     private val _reminderPreferences = MutableStateFlow(ReminderPreferences())
     override val reminderPreferences: Flow<ReminderPreferences> = _reminderPreferences.asStateFlow()
 
+    private val _lastCheckLog = MutableStateFlow<ReminderCheckLog?>(null)
+    override val lastCheckLog: Flow<ReminderCheckLog?> = _lastCheckLog.asStateFlow()
+
     val currentPrefs: ReminderPreferences
         get() = _reminderPreferences.value
+
+    override suspend fun saveLastCheckLog(log: ReminderCheckLog) {
+        _lastCheckLog.value = log
+    }
 
     override suspend fun setAdvanceDistanceKm(km: Long) {
         _reminderPreferences.value = _reminderPreferences.value.copy(advanceDistanceKm = km)
@@ -269,4 +313,59 @@ private class FakeNotificationPermissionChecker(
     }
 
     override fun getPermissionStatus(apiLevel: Int): NotificationPermissionStatus = status
+}
+
+private class FakeMaintenanceScheduleRepository : MaintenanceScheduleRepository {
+    override fun observeSchedules(vehicleId: Long): Flow<List<MaintenanceSchedule>> = flowOf(emptyList())
+    override fun observeSchedulesForActiveVehicle(): Flow<List<MaintenanceSchedule>> = flowOf(emptyList())
+    override suspend fun getSchedule(id: Long): MaintenanceSchedule? = null
+    override suspend fun insertSchedule(schedule: MaintenanceSchedule): Long = 1L
+    override suspend fun updateSchedule(schedule: MaintenanceSchedule) {}
+    override suspend fun deleteSchedule(schedule: MaintenanceSchedule) {}
+}
+
+private class FakeNotificationRepository : NotificationRepository {
+    private val notifications = mutableMapOf<Long, com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity>()
+
+    override fun observeAllNotifications(): Flow<List<com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity>> {
+        return flowOf(notifications.values.toList())
+    }
+
+    override fun observeNotificationsForVehicle(vehicleId: Long): Flow<List<com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity>> {
+        return flowOf(notifications.values.filter { it.vehicleId == vehicleId })
+    }
+
+    override suspend fun getNotification(id: Long): com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity? {
+        return notifications[id]
+    }
+
+    override suspend fun insertNotification(notification: com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity): Long {
+        notifications[notification.id] = notification
+        return notification.id
+    }
+
+    override suspend fun updateNotification(notification: com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity) {
+        notifications[notification.id] = notification
+    }
+
+    override suspend fun deleteNotification(id: Long) {
+        notifications.remove(id)
+    }
+
+    override suspend fun dismissNotification(id: Long) {
+        val existing = notifications[id]
+        if (existing != null) {
+            notifications[id] = existing.copy(isDismissed = true)
+        }
+    }
+
+    override suspend fun markAsTriggered(id: Long, triggeredDateMs: Long) {
+        val existing = notifications[id]
+        if (existing != null) {
+            notifications[id] = existing.copy(isTriggered = true, triggeredDateMs = triggeredDateMs)
+        }
+    }
+
+    override suspend fun getPreferences(): com.example.vehiclemanager.core.domain.NotificationPreferences? = null
+    override suspend fun updatePreferences(preferences: com.example.vehiclemanager.core.domain.NotificationPreferences) {}
 }

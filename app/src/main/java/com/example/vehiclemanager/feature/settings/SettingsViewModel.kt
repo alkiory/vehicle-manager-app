@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.PowerManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.example.vehiclemanager.core.data.notification.NotificationManagerImpl
 import com.example.vehiclemanager.core.data.notification.ReminderScheduler
@@ -13,6 +14,9 @@ import com.example.vehiclemanager.core.domain.ThemeMode
 import com.example.vehiclemanager.core.domain.ThemePreferenceRepository
 import com.example.vehiclemanager.core.domain.notification.NotificationPermissionChecker
 import com.example.vehiclemanager.core.domain.notification.NotificationPermissionStatus
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckLog
+import com.example.vehiclemanager.core.domain.notification.ReminderCheckTrigger
+import com.example.vehiclemanager.core.domain.notification.RunReminderCheckUseCase
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import com.example.vehiclemanager.core.ui.navigation.FormGuardHandler
 import com.example.vehiclemanager.core.ui.navigation.NavigationGuard
@@ -72,6 +76,10 @@ data class SettingsUiState(
     val showRationaleDialog: Boolean = false,
     val triggerPermissionRequest: Boolean = false,
     val nextCheckTimeStr: String? = null,
+    val isCheckScheduled: Boolean = false,
+    val lastCheckLog: ReminderCheckLog? = null,
+    val isRunningManualCheck: Boolean = false,
+    val showCheckResultsDialog: Boolean = false,
     val isIgnoringBatteryOptimizations: Boolean = true,
     val dismissBatteryHint: Boolean = false,
 ) {
@@ -106,6 +114,7 @@ class SettingsViewModel @Inject constructor(
     private val formDirtyStateHolder: FormDirtyStateHolder,
     private val permissionChecker: NotificationPermissionChecker,
     private val notificationManager: NotificationManagerImpl,
+    private val runReminderCheckUseCase: RunReminderCheckUseCase,
 ) : ViewModel() {
 
     private val dirtyToken = "settings_form"
@@ -137,6 +146,11 @@ class SettingsViewModel @Inject constructor(
         checkNotificationPermission()
         checkBatteryOptimizations()
         loadNextCheckTime()
+        viewModelScope.launch {
+            reminderPreferencesRepository.lastCheckLog.collect { log ->
+                _uiState.update { it.copy(lastCheckLog = log) }
+            }
+        }
         viewModelScope.launch {
             combine(
                 themePreferenceRepository.themeMode,
@@ -203,22 +217,67 @@ class SettingsViewModel @Inject constructor(
     fun loadNextCheckTime() {
         viewModelScope.launch {
             runCatching {
-                val workInfos = withContext(Dispatchers.IO) {
+                val workInfo = withContext(Dispatchers.IO) {
                     runCatching {
                         WorkManager.getInstance(context)
                             .getWorkInfosForUniqueWork(ReminderScheduler.WORK_NAME)
                             .get()
+                            ?.firstOrNull()
                     }.getOrNull()
                 }
-                val nextTime = workInfos?.firstOrNull()?.nextScheduleTimeMillis ?: 0L
-                if (nextTime > 0) {
+                val nextTime = workInfo?.nextScheduleTimeMillis ?: 0L
+                val isValidState = workInfo?.state == WorkInfo.State.ENQUEUED ||
+                        workInfo?.state == WorkInfo.State.RUNNING
+                val isValidNextTime = isValidState &&
+                        nextTime > 0L &&
+                        nextTime < Long.MAX_VALUE - 8640000000L &&
+                        nextTime < 4102444800000L
+
+                if (isValidNextTime) {
                     val formatted = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(nextTime))
-                    _uiState.update { it.copy(nextCheckTimeStr = formatted) }
+                    _uiState.update { it.copy(nextCheckTimeStr = formatted, isCheckScheduled = true) }
                 } else {
-                    _uiState.update { it.copy(nextCheckTimeStr = null) }
+                    _uiState.update { it.copy(nextCheckTimeStr = null, isCheckScheduled = false) }
                 }
             }
         }
+    }
+
+    fun rearmScheduler() {
+        viewModelScope.launch {
+            runCatching {
+                val prefs = _uiState.value.reminderPreferences
+                ReminderScheduler.schedule(context, prefs.notificationTimeHours, prefs.notificationTimeMinutes, forceReschedule = true)
+                loadNextCheckTime()
+            }
+        }
+    }
+
+    fun runManualCheck() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRunningManualCheck = true) }
+            runCatching {
+                val log = runReminderCheckUseCase.execute(ReminderCheckTrigger.MANUAL)
+                _uiState.update {
+                    it.copy(
+                        isRunningManualCheck = false,
+                        showCheckResultsDialog = true,
+                        lastCheckLog = log,
+                    )
+                }
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(
+                        isRunningManualCheck = false,
+                        saveErrorMessage = e.message ?: "Error al comprobar los recordatorios",
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissCheckResultsDialog() {
+        _uiState.update { it.copy(showCheckResultsDialog = false) }
     }
 
     fun onAcceptRationale() {
@@ -329,7 +388,7 @@ class SettingsViewModel @Inject constructor(
 
                 // Reschedule reminders with new time (safely caught for tests)
                 runCatching {
-                    ReminderScheduler.schedule(context, draft.notificationTimeHours, draft.notificationTimeMinutes)
+                    ReminderScheduler.schedule(context, draft.notificationTimeHours, draft.notificationTimeMinutes, forceReschedule = true)
                 }
                 loadNextCheckTime()
             }.onSuccess {
