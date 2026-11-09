@@ -33,19 +33,21 @@ object ReminderScheduler {
         notificationTimeMinutes: Int = 0,
         forceReschedule: Boolean = true,
     ) {
-        val delayMs = calculateInitialDelayMs(notificationTimeHours, notificationTimeMinutes)
-        val workRequest = OneTimeWorkRequestBuilder<ServiceReminderWorker>()
-            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
-            .build()
+        runCatching {
+            val delayMs = calculateInitialDelayMs(notificationTimeHours, notificationTimeMinutes)
+            val workRequest = OneTimeWorkRequestBuilder<ServiceReminderWorker>()
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .build()
 
-        val policy = if (forceReschedule) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+            val policy = if (forceReschedule) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
 
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(
-                WORK_NAME,
-                policy,
-                workRequest,
-            )
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(
+                    WORK_NAME,
+                    policy,
+                    workRequest,
+                )
+        }
     }
 
     fun ensureScheduled(
@@ -53,10 +55,14 @@ object ReminderScheduler {
         notificationTimeHours: Int = 9,
         notificationTimeMinutes: Int = 0,
     ) {
-        schedule(context, notificationTimeHours, notificationTimeMinutes, forceReschedule = false)
+        runCatching {
+            schedule(context, notificationTimeHours, notificationTimeMinutes, forceReschedule = false)
+        }
     }
 
     fun cancel(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        runCatching {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        }
     }
 }

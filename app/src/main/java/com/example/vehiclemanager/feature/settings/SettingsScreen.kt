@@ -13,6 +13,11 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -193,6 +198,9 @@ fun SettingsScreen(
     VehicleManagerScreen(
         topBar = { VehicleManagerAppBar(title = "Ajustes") },
     ) {
+        val isBarVisible = uiState.isDirty || uiState.saveSuccessMessage != null || uiState.saveErrorMessage != null
+        val bottomContentPadding = if (isBarVisible) 88.dp else 24.dp
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -202,7 +210,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 100.dp),
+                    .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = bottomContentPadding),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 // Eyebrow + headline
@@ -422,54 +430,58 @@ fun SettingsScreen(
                 }
             }
 
-            // Sticky Bottom Save Bar
-            Surface(
+            // Compact Sticky Save Bar
+            AnimatedVisibility(
+                visible = isBarVisible,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp,
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .height(48.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    uiState.saveSuccessMessage?.let { msg ->
-                        StatusRow(
-                            text = msg,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            icon = Icons.Default.CheckCircle,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    uiState.saveErrorMessage?.let { msg ->
-                        Text(
-                            text = msg,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    Button(
-                        onClick = { viewModel.saveSettings() },
-                        enabled = uiState.isDirty && uiState.isValid && !uiState.isSaving,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = "Guardar cambios de ajustes" },
-                    ) {
-                        if (uiState.isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 2.dp,
+                    when {
+                        uiState.saveSuccessMessage != null -> {
+                            StatusRow(
+                                text = uiState.saveSuccessMessage!!,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                icon = Icons.Default.CheckCircle,
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(text = "Guardar cambios")
+                        uiState.saveErrorMessage != null -> {
+                            Text(
+                                text = uiState.saveErrorMessage!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        else -> {
+                            Button(
+                                onClick = { viewModel.saveSettings() },
+                                enabled = uiState.isDirty && uiState.isValid && !uiState.isSaving,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .semantics { contentDescription = "Guardar cambios de ajustes" },
+                            ) {
+                                if (uiState.isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(text = "Guardar cambios")
+                            }
+                        }
                     }
                 }
             }

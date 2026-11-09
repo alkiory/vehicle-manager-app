@@ -7,6 +7,9 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 
 ## [No publicado]
 
+### Cambiado
+- Ajustes: barra "Guardar cambios" compacta, animada con deslizamiento y fundido, visible únicamente cuando hay cambios sin guardar y sin banda de fondo ni espacio innecesario.
+
 ### Corregido
 - Recordatorios: política por etapas (Antelación / Vencimiento / Vencido), evaluación de todos los vehículos (no solo el activo), recuperación de etapas omitidas al abrir la app, y persistencia de la última etapa notificada (reseteada al editar, completar o reprogramar o si faltan permisos).
 - Programación diaria persistente, autocorrección al iniciar la app y registro visible de la última comprobación.

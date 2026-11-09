@@ -145,6 +145,58 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.isDirty)
     }
 
+    @Test
+    fun visibilityState_clean() {
+        val state = viewModel.uiState.value
+        assertFalse(state.isDirty)
+        assertNull(state.saveSuccessMessage)
+        assertNull(state.saveErrorMessage)
+        val isBarVisible = state.isDirty || state.saveSuccessMessage != null || state.saveErrorMessage != null
+        assertFalse(isBarVisible)
+    }
+
+    @Test
+    fun visibilityState_dirtyValid() {
+        viewModel.setAdvanceDaysText("14")
+        val state = viewModel.uiState.value
+        assertTrue(state.isDirty)
+        assertTrue(state.isValid)
+        val isBarVisible = state.isDirty || state.saveSuccessMessage != null || state.saveErrorMessage != null
+        assertTrue(isBarVisible)
+    }
+
+    @Test
+    fun visibilityState_dirtyInvalid() {
+        viewModel.setAdvanceDistanceKmText("")
+        val state = viewModel.uiState.value
+        assertTrue(state.isDirty)
+        assertFalse(state.isValid)
+        val isBarVisible = state.isDirty || state.saveSuccessMessage != null || state.saveErrorMessage != null
+        assertTrue(isBarVisible)
+    }
+
+    @Test
+    fun visibilityState_afterSave() = runTest {
+        viewModel.setAdvanceDaysText("10")
+        viewModel.saveSettings()
+        testDispatcher.scheduler.runCurrent()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isDirty)
+        assertEquals("Cambios guardados", state.saveSuccessMessage)
+        val isBarVisible = state.isDirty || state.saveSuccessMessage != null || state.saveErrorMessage != null
+        assertTrue(isBarVisible)
+
+        testDispatcher.scheduler.advanceTimeBy(3001)
+        testDispatcher.scheduler.runCurrent()
+
+        val dismissedState = viewModel.uiState.value
+        assertFalse(dismissedState.isDirty)
+        assertNull(dismissedState.saveSuccessMessage)
+        val isBarVisibleDismissed = dismissedState.isDirty || dismissedState.saveSuccessMessage != null || dismissedState.saveErrorMessage != null
+        assertFalse(isBarVisibleDismissed)
+    }
+
     private class FakeThemePreferenceRepository : ThemePreferenceRepository {
         private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
         override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
