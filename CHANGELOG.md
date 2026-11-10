@@ -7,15 +7,29 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 
 ## [No publicado]
 
+## [0.3.2] - 2026-03-09
+
 ### Cambiado
-- Dashboard y Estadísticas: unificación del cálculo del consumo medio como el promedio de depósito lleno (desde el primer depósito lleno hasta el último); formato unificado a dos decimales (`%.2f L/100 km`) en todas partes; variación de porcentaje de precios calculada a partir de precios mensuales sin redondear (`+0.03 €/L (+1.8 %)`); subtítulos explicativos y explicaciones de autonomía, margen de seguridad del 10% y odómetro en la tarjeta de próximo repostaje estimado; y desglose del divisor y rango de meses en "Gasto mensual medio" (ej. "Coste total ÷ 2 meses (sept 26 – oct 26)").
-- Ajustes: barra "Guardar cambios" compacta, animada con deslizamiento y fundido, visible únicamente cuando hay cambios sin guardar y sin banda de fondo ni espacio innecesario.
-- Tema visual: completados los esquemas de color Material 3 en modo claro y oscuro con todos los roles faltantes, eliminando los tonos morados predeterminados en el botón flotante "+", el chip "Ver todo" y el botón de inicio.
-- Barra de navegación inferior: se ha corregido el margen lateral de ~15px y el recorte del indicador de selección en las pestañas primera y última, logrando que abarque todo el ancho y muestre el indicador sin recortes en las seis pestañas.
+- Diseño de la tarjeta "Próximo repostaje estimado" simplificado para restaurar una estética limpia y minimalista, eliminando las fórmulas matemáticas detalladas.
+
+## [0.3.1] - 2026-03-08
+
+### Añadido
+- Botón "Comprobar ahora" y registro de la última comprobación en la pantalla de Ajustes.
+
+### Cambiado
+- Barra "Guardar cambios" compacta y visible solo cuando hay cambios en Ajustes.
+- Tema visual con paleta completa Material 3, eliminando colores morados en "+", "Ver todo" y botón de inicio.
+- Indicador de navegación inferior corregido sin recortes en primera y última pestaña.
+- Variación de precios calculada con valores mensuales sin redondear.
+- Formato y definición del consumo medio unificados a dos decimales (`%.2f L/100 km`).
+- Explicaciones y margen de seguridad del 10% en la tarjeta de próximo repostaje estimado.
+- Desglose del divisor y rango de meses en "Gasto mensual medio".
 
 ### Corregido
-- Recordatorios: política por etapas (Antelación / Vencimiento / Vencido), evaluación de todos los vehículos (no solo el activo), recuperación de etapas omitidas al abrir la app, y persistencia de la última etapa notificada (reseteada al editar, completar o reprogramar o si faltan permisos).
-- Programación diaria persistente, autocorrección al iniciar la app y registro visible de la última comprobación.
+- Recordatorios vencidos que no se notificaban (política por etapas: Antelación, Vencimiento, Vencido para todos los vehículos).
+- Programación diaria de comprobaciones ya no se cancela con la notificación de prueba y se recupera sola al iniciar la app.
+- Fecha de "Próxima comprobación" errónea al mostrar valores centinela de WorkManager.
 
 ## [0.3.0] - 2026-03-07
 

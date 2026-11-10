@@ -342,11 +342,6 @@ private fun NextRefuelEstimateCard(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Text(
-                                    text = "Litros ÷ km entre llenados",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                             }
                         }
 
@@ -362,11 +357,6 @@ private fun NextRefuelEstimateCard(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
-                            Text(
-                                text = "Capacidad ÷ consumo",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
                         }
 
                         if (estimate.estimatedNextRefuelOdometerKm != null) {
@@ -381,11 +371,6 @@ private fun NextRefuelEstimateCard(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                Text(
-                                    text = "Odómetro actual + 90% autonomía",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -405,11 +390,6 @@ private fun NextRefuelEstimateCard(
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Text(
-                                text = "Basado en km diarios medios históricos",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
