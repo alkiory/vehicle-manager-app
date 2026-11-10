@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 
 ### Cambiado
 - Ajustes: barra "Guardar cambios" compacta, animada con deslizamiento y fundido, visible únicamente cuando hay cambios sin guardar y sin banda de fondo ni espacio innecesario.
+- Tema visual: completados los esquemas de color Material 3 en modo claro y oscuro con todos los roles faltantes, eliminando los tonos morados predeterminados en el botón flotante "+", el chip "Ver todo" y el botón de inicio.
+- Barra de navegación inferior: se ha corregido el margen lateral de ~15px y el recorte del indicador de selección en las pestañas primera y última, logrando que abarque todo el ancho y muestre el indicador sin recortes en las seis pestañas.
 
 ### Corregido
 - Recordatorios: política por etapas (Antelación / Vencimiento / Vencido), evaluación de todos los vehículos (no solo el activo), recuperación de etapas omitidas al abrir la app, y persistencia de la última etapa notificada (reseteada al editar, completar o reprogramar o si faltan permisos).

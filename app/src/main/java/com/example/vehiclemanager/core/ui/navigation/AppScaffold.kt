@@ -3,11 +3,13 @@ package com.example.vehiclemanager.core.ui.navigation
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
@@ -234,18 +236,14 @@ private fun AppNavigationBar(
     currentDestination: NavDestination?,
     onDestinationSelected: (PrimaryDestination) -> Unit,
 ) {
-    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val indicatorAlpha = if (isDark) 0.20f else 0.12f
 
     NavigationBar(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp + bottomInset)
-            .padding(horizontal = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
-        windowInsets = NavigationBarDefaults.windowInsets,
+        windowInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Bottom),
     ) {
         primaryDestinations.forEach { destination ->
             val selected = destination.isSelected(currentDestination)

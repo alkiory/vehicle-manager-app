@@ -29,7 +29,11 @@ fun FuelScreen(
     VehicleManagerScreen(
         topBar = { VehicleManagerAppBar(title = "Combustible") },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddFuel) {
+            FloatingActionButton(
+                onClick = onAddFuel,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
                 Icon(imageVector = AppIcons.ActionFuel, contentDescription = "Añadir repostaje")
             }
         },

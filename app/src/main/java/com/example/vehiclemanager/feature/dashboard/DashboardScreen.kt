@@ -416,7 +416,7 @@ private fun QuickSummarySection(
             Text(
                 text = "Ver todo",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .clickable(onClickLabel = "Ver historial de combustible") { onViewAll() }
                     .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
@@ -552,6 +552,8 @@ private fun DashboardActionHub(
         }
         FloatingActionButton(
             onClick = { onExpandedChange(!expanded) },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.semantics { contentDescription = "Acciones rápidas" },
         ) {
             Icon(

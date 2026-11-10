@@ -56,6 +56,8 @@ fun VehiclesScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddVehicle,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.semantics {
                     contentDescription = "Añadir vehículo"
                 },
