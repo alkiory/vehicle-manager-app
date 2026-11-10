@@ -30,6 +30,12 @@ object Formatters {
         return String.format(Locale.US, "%.2f €/mes", amount)
     }
 
+    fun formatConsumption(litersPer100KmX100: Long?): String {
+        if (litersPer100KmX100 == null) return "—"
+        val consumption = BigDecimal.valueOf(litersPer100KmX100).divide(BigDecimal(100), 2, RoundingMode.HALF_UP)
+        return String.format(Locale.US, "%.2f L/100 km", consumption)
+    }
+
     fun formatLiters(litersX100: Int): String {
         val liters = BigDecimal.valueOf(litersX100.toLong()).divide(BigDecimal(100), 2, RoundingMode.HALF_UP)
         return String.format(Locale.US, "%.2f L", liters)

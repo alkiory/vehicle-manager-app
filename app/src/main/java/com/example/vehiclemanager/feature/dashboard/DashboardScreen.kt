@@ -330,22 +330,27 @@ private fun NextRefuelEstimateCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         if (estimate.averageConsumptionLPer100Km != null) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Consumo medio",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
-                                    text = String.format(Locale.getDefault(), "%.1f L/100 km", estimate.averageConsumptionLPer100Km),
+                                    text = String.format(Locale.US, "%.2f L/100 km", estimate.averageConsumptionLPer100Km),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
+                                Text(
+                                    text = "Litros ÷ km entre llenados",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Autonomía restante",
                                 style = MaterialTheme.typography.labelSmall,
@@ -357,10 +362,15 @@ private fun NextRefuelEstimateCard(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                            Text(
+                                text = "Capacidad ÷ consumo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
 
                         if (estimate.estimatedNextRefuelOdometerKm != null) {
-                            Column(horizontalAlignment = Alignment.End) {
+                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Próximo repostaje",
                                     style = MaterialTheme.typography.labelSmall,
@@ -372,23 +382,36 @@ private fun NextRefuelEstimateCard(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
+                                Text(
+                                    text = "Odómetro actual + 90% autonomía",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
 
                     if (estimate.estimatedNextRefuelDateMs != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         val formattedDate = remember(estimate.estimatedNextRefuelDateMs) {
                             val instant = Instant.ofEpochMilli(estimate.estimatedNextRefuelDateMs)
                             val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
                                 .withZone(ZoneId.systemDefault())
                             formatter.format(instant)
                         }
-                        Text(
-                            text = "Fecha estimada: $formattedDate",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column {
+                            Text(
+                                text = "Fecha estimada: $formattedDate",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "Basado en km diarios medios históricos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 } else {
                     Text(
@@ -437,7 +460,7 @@ private fun QuickSummarySection(
                 value = when {
                     latestFuel == null -> "Sin registros"
                     consumptionX100 == null -> "Sin datos suficientes"
-                    else -> "${formatDecimalHundredths(consumptionX100)} L/100km"
+                    else -> Formatters.formatConsumption(consumptionX100)
                 },
                 caption = when {
                     latestFuel == null -> "Añade tu primer repostaje"
@@ -564,8 +587,7 @@ private fun DashboardActionHub(
     }
 }
 
-private fun formatDecimalHundredths(value: Long): String =
-    "${value / 100}.${(value % 100).toString().padStart(2, '0')}"
+
 
 @Composable
 private fun TimelineSection(

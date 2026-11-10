@@ -7,7 +7,7 @@ import org.junit.Test
 
 class CalculateVehicleStatsUseCaseTest {
     private val useCase = CalculateVehicleStatsUseCase()
-    private val currentDate = epoch("2025-10-15")
+    private val currentDate = epoch("2025-10-30")
 
     @Test
     fun epic022FixtureCalculatesCorrectTotalsAveragesAndWeightedPrice() {
@@ -31,6 +31,41 @@ class CalculateVehicleStatsUseCaseTest {
         assertEquals(11_832L, stats.averageMonthlySpendCents) // 118.32 €/mes (23663 / 2 months inclusive)
         assertEquals(listOf(9_200L, 14_463L), stats.monthlyExpenditure.map { it.totalCostCents })
         assertEquals(179L, stats.monthlyFuelPrice.find { it.month == 9 }?.averagePricePerLiterCents) // 1.79 €/L (weighted)
+    }
+
+    @Test
+    fun regressionFixtureEpic023Task005CalculatesCorrectStatisticsAndPrices() {
+        val fuel = listOf(
+            fuel("2025-09-01", 188427, 175, 5000, litersX100 = 2857),
+            fuel("2025-09-15", 188800, 187, 3000, litersX100 = 1604),
+            fuel("2025-10-05", 189300, 185, 6000, litersX100 = 3243),
+            fuel("2025-10-10", 190000, 180, 8000, litersX100 = 4444),
+            fuel("2025-10-20", 190600, 183, 5000, litersX100 = 2732),
+            fuel("2025-10-25", 191263, 183, 5000, litersX100 = 2732),
+        )
+        val maintenance = listOf(
+            maintenance("2025-09-20", 188500, 1200),
+            maintenance("2025-10-15", 190100, 463),
+        )
+
+        val stats = useCase(fuel, maintenance, StatsPeriod.ALL_TIME, currentDate, activeVehicleId = 1)
+
+        assertEquals(32000L, stats.totalFuelCostCents)
+        assertEquals(1663L, stats.totalMaintenanceCostCents)
+        assertEquals(33663L, stats.totalCostCents)
+        assertEquals(2836L, stats.totalDistanceKm)
+        assertEquals(1187L, stats.costPerKilometerCentsX100) // 0.12 €/km
+        assertEquals(16832L, stats.averageMonthlySpendCents) // 168.32 €/mes
+        assertEquals(listOf(9200L, 24463L), stats.monthlyExpenditure.map { it.totalCostCents })
+        assertEquals(179L, stats.monthlyFuelPrice.find { it.month == 9 }?.averagePricePerLiterCents)
+        assertEquals(182L, stats.monthlyFuelPrice.find { it.month == 10 }?.averagePricePerLiterCents)
+
+        val sepPrice = stats.monthlyFuelPrice.find { it.month == 9 }?.exactPricePerLiter ?: 0.0
+        val octPrice = stats.monthlyFuelPrice.find { it.month == 10 }?.exactPricePerLiter ?: 0.0
+        val diff = octPrice - sepPrice
+        val pct = (diff / sepPrice) * 100.0
+        assertEquals(0.03, diff, 0.01)
+        assertEquals(1.8, pct, 0.1)
     }
 
     @Test

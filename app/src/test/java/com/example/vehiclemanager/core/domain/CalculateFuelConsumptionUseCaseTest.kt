@@ -54,21 +54,21 @@ class CalculateFuelConsumptionUseCaseTest {
     }
 
     @Test
-    fun respectsMaxIntervalsForWeightedAverage() {
+    fun calculatesFullTankAverageAcrossAllIntervalsBetweenFirstAndLast() {
         val result = calculate(
             records = listOf(
-                record(id = 1, odometerKm = 1_000, litersX100 = 10_000, fullTank = true), // extreme interval
+                record(id = 1, odometerKm = 1_000, litersX100 = 10_000, fullTank = true),
                 record(id = 2, odometerKm = 2_000, litersX100 = 3_000, fullTank = true),
                 record(id = 3, odometerKm = 2_500, litersX100 = 3_000, fullTank = true),
                 record(id = 4, odometerKm = 3_000, litersX100 = 3_000, fullTank = true),
                 record(id = 5, odometerKm = 3_500, litersX100 = 3_000, fullTank = true),
             ),
-            maxIntervals = 3,
         )
 
-        // Last 3 intervals: 3000/500 = 6 L/100km each -> 600 in x100 units.
-        assertEquals(600L, (result as FuelConsumptionResult.Calculated).litersPer100KmX100)
-        assertEquals(3, result.intervalsUsed)
+        // Total distance: 3500 - 1000 = 2500 km. Total liters after first full tank: 3000*4 = 12000.
+        // 12000 L*100 / 2500 = 480.
+        assertEquals(480L, (result as FuelConsumptionResult.Calculated).litersPer100KmX100)
+        assertEquals(4, result.intervalsUsed)
     }
 
     @Test

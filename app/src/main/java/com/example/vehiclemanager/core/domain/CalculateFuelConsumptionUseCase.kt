@@ -32,46 +32,21 @@ class CalculateFuelConsumptionUseCase @Inject constructor() {
 
         if (fullTankIndexes.size < 2) return FuelConsumptionResult.InsufficientData
 
-        val intervals = mutableListOf<FuelInterval>()
-        fullTankIndexes.zipWithNext().forEach { (startIndex, endIndex) ->
-            val start = orderedRecords[startIndex]
-            val end = orderedRecords[endIndex]
-            val distanceKm = end.odometerKm - start.odometerKm
-            if (distanceKm <= 0) return@forEach
+        val startIndex = fullTankIndexes.first()
+        val endIndex = fullTankIndexes.last()
+        val distanceKm = orderedRecords[endIndex].odometerKm - orderedRecords[startIndex].odometerKm
+        if (distanceKm <= 0) return FuelConsumptionResult.InsufficientData
 
-            val intervalLitersX100 = orderedRecords
-                .subList(startIndex + 1, endIndex + 1)
-                .sumOf { it.litersX100.toLong() }
-            if (intervalLitersX100 <= 0) return@forEach
-
-            intervals.add(
-                FuelInterval(
-                    distanceKm = distanceKm,
-                    litersX100 = intervalLitersX100,
-                ),
-            )
-        }
-
-        if (intervals.isEmpty()) {
-            return FuelConsumptionResult.InsufficientData
-        }
-
-        val recentIntervals = intervals.takeLast(maxIntervals)
-        val totalLitersX100 = recentIntervals.sumOf { it.litersX100 }
-        val totalDistanceKm = recentIntervals.sumOf { it.distanceKm }
-
-        if (totalDistanceKm <= 0) {
-            return FuelConsumptionResult.InsufficientData
-        }
+        val totalLitersX100 = orderedRecords
+            .subList(startIndex + 1, endIndex + 1)
+            .sumOf { it.litersX100.toLong() }
+        if (totalLitersX100 <= 0) return FuelConsumptionResult.InsufficientData
 
         return FuelConsumptionResult.Calculated(
-            litersPer100KmX100 = (totalLitersX100 * 100L) / totalDistanceKm,
-            intervalsUsed = recentIntervals.size,
+            litersPer100KmX100 = (totalLitersX100 * 100L) / distanceKm,
+            intervalsUsed = fullTankIndexes.size - 1,
         )
     }
 
-    private data class FuelInterval(
-        val distanceKm: Long,
-        val litersX100: Long,
-    )
+
 }

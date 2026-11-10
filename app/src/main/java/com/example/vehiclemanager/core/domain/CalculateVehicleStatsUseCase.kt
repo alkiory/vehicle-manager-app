@@ -114,7 +114,14 @@ class CalculateVehicleStatsUseCase @Inject constructor() {
                     .divide(totalLitersBigDecimal, 0, RoundingMode.HALF_UP)
                     .toLong()
             }
-            MonthlyFuelPrice(month.year, month.monthValue, weightedPrice)
+            val exactPrice = if (totalLitersBigDecimal.compareTo(BigDecimal.ZERO) <= 0) {
+                0.0
+            } else {
+                totalCostBigDecimal.divide(totalLitersBigDecimal, 4, RoundingMode.HALF_UP)
+                    .divide(BigDecimal(100), 4, RoundingMode.HALF_UP)
+                    .toDouble()
+            }
+            MonthlyFuelPrice(month.year, month.monthValue, weightedPrice, exactPrice)
         }
 }
 
@@ -147,6 +154,7 @@ data class MonthlyFuelPrice(
     val year: Int,
     val month: Int,
     val averagePricePerLiterCents: Long,
+    val exactPricePerLiter: Double = 0.0,
 )
 
 fun StatsPeriod.startDateMs(currentDateMs: Long): Long? = when (this) {

@@ -225,9 +225,25 @@ private fun SummaryCard(stats: VehicleStats) {
                     valueColor = AppTheme.semanticColors.cost,
                 )
                 SummaryDivider()
+                val monthsCount = stats.monthlyExpenditure.size
+                val avgSpendCaption = when {
+                    monthsCount <= 0 -> "Coste total ÷ meses"
+                    monthsCount == 1 -> {
+                        val m = stats.monthlyExpenditure.first()
+                        val monthName = Month.of(m.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES")).lowercase().removeSuffix(".")
+                        "Coste total ÷ 1 mes ($monthName ${m.year % 100})"
+                    }
+                    else -> {
+                        val first = stats.monthlyExpenditure.first()
+                        val last = stats.monthlyExpenditure.last()
+                        val firstName = Month.of(first.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES")).lowercase().removeSuffix(".")
+                        val lastName = Month.of(last.month).getDisplayName(TextStyle.SHORT, Locale("es", "ES")).lowercase().removeSuffix(".")
+                        "Coste total ÷ $monthsCount meses ($firstName ${first.year % 100} – $lastName ${last.year % 100})"
+                    }
+                }
                 SummaryMetricRow(
                     label = "Gasto mensual medio",
-                    caption = "Coste total ÷ meses",
+                    caption = avgSpendCaption,
                     value = Formatters.formatMonthlySpend(stats.averageMonthlySpendCents),
                 )
             }
@@ -394,8 +410,8 @@ private fun FuelPriceCard(values: List<MonthlyFuelPrice>, modifier: Modifier = M
             val recentValues = values.takeLast(12)
 
             val deltaText = if (recentValues.size >= 2) {
-                val current = recentValues.last().averagePricePerLiterCents.toDouble() / 100.0
-                val previous = recentValues[recentValues.lastIndex - 1].averagePricePerLiterCents.toDouble() / 100.0
+                val current = recentValues.last().exactPricePerLiter
+                val previous = recentValues[recentValues.lastIndex - 1].exactPricePerLiter
                 val diff = current - previous
                 val pct = if (previous > 0.0) (diff / previous) * 100.0 else 0.0
                 val sign = if (diff >= 0) "+" else ""
