@@ -15,6 +15,7 @@ fun VehicleManagerScreen(
     topBar: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -22,6 +23,7 @@ fun VehicleManagerScreen(
         topBar = topBar,
         bottomBar = bottomBar,
         floatingActionButton = floatingActionButton,
+        snackbarHost = snackbarHost,
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         content = { paddingValues ->

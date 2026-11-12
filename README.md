@@ -75,6 +75,8 @@ com.example.vehiclemanager/
 - Add and edit vehicle details (brand, model, license plate, odometer)
 - Six canonical vehicle types with icons and labels (`CAR`, `MOTORCYCLE`, `TRUCK`, `VAN`, `BUS`, `ELECTRIC_BICYCLE`)
 - View list of registered vehicles
+- Delete a vehicle with confirmation, cascading its fuel, maintenance and schedule history
+- An 8-second undo restores the deleted vehicle and its history with their original ids
 
 ### Fuel Tracking
 - Record, edit, and delete fuel refuels with odometer, price per liter, quantity, and auto-calculated total cost

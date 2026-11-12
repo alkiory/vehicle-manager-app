@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.AirportShuttle
@@ -51,6 +52,7 @@ object AppIcons {
     // Quick actions / FAB
     val ActionPlus = Icons.Filled.Add
     val ActionClose = Icons.Filled.Close
+    val ActionDelete = Icons.Filled.Delete
     val ActionFuel = Icons.Filled.LocalGasStation
     val ActionWrench = Icons.Filled.Build
     val ActionChart = Icons.Filled.TrendingUp

@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 
 ## [No publicado]
 
+### Añadido
+- Eliminación de vehículos desde la lista, con confirmación que detalla el historial que se eliminará en cascada (repostajes, servicios y recordatorios).
+- Ventana de deshacer de 8 segundos que restaura el vehículo y su historial con los identificadores originales.
+
 ## [0.3.2] - 2026-03-09
 
 ### Cambiado

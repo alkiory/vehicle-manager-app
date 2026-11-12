@@ -12,6 +12,7 @@ import com.example.vehiclemanager.core.data.maintenance.MaintenanceScheduleEntit
 import com.example.vehiclemanager.core.data.notification.NotificationPreferencesEntity
 import com.example.vehiclemanager.core.data.notification.NotificationScheduleEntity
 import com.example.vehiclemanager.core.data.notification.NotificationDao
+import com.example.vehiclemanager.core.data.vehicle.VehicleCascadeDao
 import com.example.vehiclemanager.core.data.vehicle.VehicleDao
 import com.example.vehiclemanager.core.data.vehicle.VehicleEntity
 
@@ -36,6 +37,7 @@ import com.example.vehiclemanager.core.data.vehicle.VehicleEntity
 @TypeConverters(Converters::class)
 abstract class VehicleDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
+    abstract fun vehicleCascadeDao(): VehicleCascadeDao
     abstract fun fuelRecordDao(): FuelRecordDao
     abstract fun maintenanceRecordDao(): MaintenanceRecordDao
     abstract fun maintenanceScheduleDao(): MaintenanceScheduleDao

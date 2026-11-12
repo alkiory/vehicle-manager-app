@@ -6,6 +6,7 @@ import com.example.vehiclemanager.core.data.fuel.FuelRecordDao
 import com.example.vehiclemanager.core.data.maintenance.MaintenanceRecordDao
 import com.example.vehiclemanager.core.data.maintenance.MaintenanceScheduleDao
 import com.example.vehiclemanager.core.data.notification.NotificationDao
+import com.example.vehiclemanager.core.data.vehicle.VehicleCascadeDao
 import com.example.vehiclemanager.core.data.vehicle.VehicleDao
 import dagger.Module
 import dagger.Provides
@@ -30,6 +31,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideVehicleDao(database: VehicleDatabase): VehicleDao = database.vehicleDao()
+
+    @Provides
+    @Singleton
+    fun provideVehicleCascadeDao(database: VehicleDatabase): VehicleCascadeDao =
+        database.vehicleCascadeDao()
 
     @Provides
     @Singleton
