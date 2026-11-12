@@ -161,6 +161,18 @@ internal fun computeTotalCostFromParts(liters: String, pricePerLiter: String): C
     return ComputedAmount(totalCents, FuelAmountField.TOTAL_COST)
 }
 
+fun centsToInputText(cents: Long): String {
+    val whole = cents / 100
+    val hundredths = (cents % 100).toString().padStart(2, '0')
+    return "$whole.$hundredths"
+}
+
+fun litersX100ToInputText(litersX100: Int): String {
+    val whole = litersX100 / 100
+    val hundredths = (litersX100 % 100).toString().padStart(2, '0')
+    return "$whole.$hundredths"
+}
+
 private fun decimalOrNull(value: String): BigDecimal? = value
     .trim()
     .takeIf(String::isNotEmpty)

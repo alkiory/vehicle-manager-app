@@ -26,6 +26,7 @@ class MaintenanceHistoryViewModel @Inject constructor(
     private val maintenanceRecordRepository: MaintenanceRecordRepository,
 ) : ViewModel() {
     private val pendingDelete = MutableStateFlow<MaintenanceRecord?>(null)
+    private val isDeleting = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<MaintenanceHistoryUiState> = activeVehicleRepository.activeVehicle
@@ -43,6 +44,7 @@ class MaintenanceHistoryViewModel @Inject constructor(
                 recordPendingDeletion = record,
             )
         }
+        .combine(isDeleting) { state, deleting -> state.copy(isDeleting = deleting) }
         .combine(error) { state, deleteError -> state.copy(error = deleteError) }
         .stateIn(
             scope = viewModelScope,
@@ -60,10 +62,17 @@ class MaintenanceHistoryViewModel @Inject constructor(
 
     fun confirmDelete() {
         val record = pendingDelete.value ?: return
-        pendingDelete.value = null
+        if (isDeleting.value) return
+        isDeleting.value = true
+        error.value = null
         viewModelScope.launch {
             runCatching { maintenanceRecordRepository.deleteMaintenanceRecord(record) }
-                .onFailure { throwable -> error.value = throwable.message ?: "delete_failed" }
+                .onSuccess { pendingDelete.value = null }
+                .onFailure { throwable ->
+                    pendingDelete.value = null
+                    error.value = throwable.message ?: "delete_failed"
+                }
+            isDeleting.value = false
         }
     }
 
@@ -77,5 +86,6 @@ data class MaintenanceHistoryUiState(
     val activeVehicle: Vehicle? = null,
     val records: List<MaintenanceRecord> = emptyList(),
     val recordPendingDeletion: MaintenanceRecord? = null,
+    val isDeleting: Boolean = false,
     val error: String? = null,
 )

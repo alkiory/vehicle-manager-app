@@ -4,7 +4,12 @@ import javax.inject.Inject
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-private const val SUPPORTED_SCHEMA_VERSION = 1
+private const val LEGACY_SCHEMA_VERSION = 1
+private const val CURRENT_SCHEMA_VERSION = 2
+private val SUPPORTED_SCHEMA_VERSIONS = setOf(LEGACY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
+
+private fun supportedVehicleTypes(): String =
+    VehicleType.entries.joinToString(", ") { it.name }
 
 class ExportDatabaseUseCase @Inject constructor(
     private val backupRepository: VehicleBackupRepository,
@@ -68,16 +73,19 @@ private data class VehicleBackupPayload(
     val maintenanceRecords: List<MaintenanceRecordPayload>,
     val maintenanceSchedules: List<MaintenanceSchedulePayload>,
 ) {
-    fun toSnapshot() = VehicleBackupSnapshot(
-        activeVehicleId = activeVehicleId,
-        vehicles = vehicles.map(VehiclePayload::toDomain),
-        fuelRecords = fuelRecords.map(FuelRecordPayload::toDomain),
-        maintenanceRecords = maintenanceRecords.map(MaintenanceRecordPayload::toDomain),
-        maintenanceSchedules = maintenanceSchedules.map(MaintenanceSchedulePayload::toDomain),
-    ).also {
-        require(schemaVersion == SUPPORTED_SCHEMA_VERSION) {
+    fun toSnapshot(): VehicleBackupSnapshot {
+        require(schemaVersion in SUPPORTED_SCHEMA_VERSIONS) {
             "Unsupported backup schema version: $schemaVersion"
         }
+        return VehicleBackupSnapshot(
+            activeVehicleId = activeVehicleId,
+            vehicles = vehicles.mapIndexed { index, vehicle ->
+                vehicle.toDomain(schemaVersion, index)
+            },
+            fuelRecords = fuelRecords.map(FuelRecordPayload::toDomain),
+            maintenanceRecords = maintenanceRecords.map(MaintenanceRecordPayload::toDomain),
+            maintenanceSchedules = maintenanceSchedules.map(MaintenanceSchedulePayload::toDomain),
+        )
     }
 }
 
@@ -92,19 +100,48 @@ private data class VehiclePayload(
     val vin: String?,
     val fuelType: String,
     val primaryOdometerKm: Long,
+    val vehicleType: String? = null,
 ) {
-    fun toDomain() = Vehicle(
-        id = id,
-        name = name,
-        make = make,
-        model = model,
-        year = year,
-        licensePlate = licensePlate,
-        vin = vin,
-        fuelType = runCatching { FuelType.valueOf(fuelType) }
-            .getOrElse { throw IllegalArgumentException("Unknown fuel type: $fuelType") },
-        primaryOdometerKm = primaryOdometerKm,
-    )
+    fun toDomain(schemaVersion: Int, index: Int): Vehicle {
+        val resolvedVehicleType = resolveVehicleType(schemaVersion, index)
+        return Vehicle(
+            id = id,
+            name = name,
+            make = make,
+            model = model,
+            year = year,
+            licensePlate = licensePlate,
+            vin = vin,
+            fuelType = runCatching { FuelType.valueOf(fuelType) }
+                .getOrElse { throw IllegalArgumentException("Unknown fuel type: $fuelType") },
+            primaryOdometerKm = primaryOdometerKm,
+            vehicleType = resolvedVehicleType,
+        )
+    }
+
+    private fun resolveVehicleType(schemaVersion: Int, index: Int): VehicleType {
+        return when (schemaVersion) {
+            LEGACY_SCHEMA_VERSION -> VehicleType.CAR
+            CURRENT_SCHEMA_VERSION -> {
+                val context = "vehicles[$index] (vehicle id $id)"
+                val raw = vehicleType
+                if (raw == null) {
+                    throw IllegalArgumentException(
+                        "Invalid vehicle type for $context: expected one of ${supportedVehicleTypes()}",
+                    )
+                }
+                if (raw.isBlank() || raw != raw.trim()) {
+                    throw IllegalArgumentException(
+                        "Invalid vehicle type \"$raw\" for $context: expected one of ${supportedVehicleTypes()}",
+                    )
+                }
+                VehicleType.fromStored(raw) ?: throw IllegalArgumentException(
+                    "Unsupported vehicle type \"$raw\" for $context; expected one of ${supportedVehicleTypes()}",
+                )
+            }
+            else -> throw IllegalArgumentException("Unsupported backup schema version: $schemaVersion")
+        }
+    }
 }
 
 @Serializable
@@ -182,19 +219,20 @@ private data class MaintenanceSchedulePayload(
 }
 
 private fun VehicleBackupSnapshot.toPayload() = VehicleBackupPayload(
-    schemaVersion = SUPPORTED_SCHEMA_VERSION,
+    schemaVersion = CURRENT_SCHEMA_VERSION,
     activeVehicleId = activeVehicleId,
     vehicles = vehicles.map {
         VehiclePayload(
-            it.id,
-            it.name,
-            it.make,
-            it.model,
-            it.year,
-            it.licensePlate,
-            it.vin,
-            it.fuelType.name,
-            it.primaryOdometerKm,
+            id = it.id,
+            name = it.name,
+            make = it.make,
+            model = it.model,
+            year = it.year,
+            licensePlate = it.licensePlate,
+            vin = it.vin,
+            fuelType = it.fuelType.name,
+            primaryOdometerKm = it.primaryOdometerKm,
+            vehicleType = it.vehicleType.name,
         )
     },
     fuelRecords = fuelRecords.map {

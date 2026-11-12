@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -29,8 +30,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,6 +66,7 @@ private data class PrimaryDestination(
     val shortLabel: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
+    val iconResId: Int? = null,
     val navigate: (NavHostController) -> Unit,
     val isSelected: (NavDestination?) -> Boolean,
 )
@@ -107,6 +112,7 @@ private val primaryDestinations = listOf(
         shortLabel = "Inicio",
         selectedIcon = AppIcons.NavHome,
         unselectedIcon = AppIcons.NavHome,
+        iconResId = R.drawable.vehiclemanagericon,
         navigate = { it.navigateTo(DashboardRoute) },
         isSelected = { it?.hasRoute<DashboardRoute>() == true },
     ),
@@ -252,16 +258,28 @@ private fun AppNavigationBar(
                 onClick = { onDestinationSelected(destination) },
                 alwaysShowLabel = false,
                 icon = {
-                    Icon(
-                        imageVector = destination.selectedIcon,
-                        contentDescription = destination.label,
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(24.dp),
-                    )
+                    val iconResId = destination.iconResId
+                    if (iconResId != null) {
+                        Icon(
+                            painter = painterResource(id = iconResId),
+                            contentDescription = destination.label,
+                            tint = Color.Unspecified,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = destination.selectedIcon,
+                            contentDescription = destination.label,
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 },
                 label = { },
                 colors = NavigationBarItemDefaults.colors(
@@ -293,16 +311,28 @@ private fun AppNavigationRail(
                 selected = selected,
                 onClick = { onDestinationSelected(destination) },
                 icon = {
-                    Icon(
-                        imageVector = destination.selectedIcon,
-                        contentDescription = destination.label,
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(24.dp),
-                    )
+                    val iconResId = destination.iconResId
+                    if (iconResId != null) {
+                        Icon(
+                            painter = painterResource(id = iconResId),
+                            contentDescription = destination.label,
+                            tint = Color.Unspecified,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = destination.selectedIcon,
+                            contentDescription = destination.label,
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 },
                 label = {
                     Text(
@@ -339,9 +369,11 @@ private fun AppNavHost(
     ) {
         composable<DashboardRoute> {
             DashboardScreen(
-                onAddFuel = { navController.navigate(AddFuelRoute) },
+                onAddFuel = { navController.navigate(AddFuelRoute()) },
                 onAddMaintenance = { navController.navigate(AddEditMaintenanceRoute()) },
                 onViewAll = { navController.navigate(FuelRoute) },
+                onOpenFuel = { recordId -> navController.navigate(FuelDetailRoute(recordId)) },
+                onOpenMaintenance = { recordId -> navController.navigate(AddEditMaintenanceRoute(recordId)) },
             )
         }
         composable<VehiclesRoute> {
@@ -355,7 +387,7 @@ private fun AppNavHost(
         }
         composable<FuelRoute> {
             FuelHistoryScreen(
-                onAddFuel = { navController.navigate(AddFuelRoute) },
+                onAddFuel = { navController.navigate(AddFuelRoute()) },
                 onOpenDetail = { recordId -> navController.navigate(FuelDetailRoute(recordId)) },
             )
         }
@@ -363,7 +395,10 @@ private fun AppNavHost(
             AddFuelScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable<FuelDetailRoute> {
-            FuelDetailScreen(onNavigateBack = { navController.popBackStack() })
+            FuelDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEdit = { recordId -> navController.navigate(AddFuelRoute(recordId)) },
+            )
         }
         composable<MaintenanceRoute> {
             MaintenanceHistoryScreen(

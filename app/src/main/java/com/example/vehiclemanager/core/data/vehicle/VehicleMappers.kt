@@ -12,6 +12,7 @@ fun VehicleEntity.toDomain(): Vehicle = Vehicle(
     vin = vin,
     fuelType = fuelType,
     primaryOdometerKm = primaryOdometerKm,
+    vehicleType = vehicleType,
 )
 
 fun Vehicle.toEntity(): VehicleEntity = VehicleEntity(
@@ -24,4 +25,5 @@ fun Vehicle.toEntity(): VehicleEntity = VehicleEntity(
     vin = vin,
     fuelType = fuelType,
     primaryOdometerKm = primaryOdometerKm,
+    vehicleType = vehicleType,
 )

@@ -2,6 +2,7 @@ package com.example.vehiclemanager.core.data.vehicle
 
 import com.example.vehiclemanager.core.domain.FuelType
 import com.example.vehiclemanager.core.domain.Vehicle
+import com.example.vehiclemanager.core.domain.VehicleType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,7 @@ class VehicleRepositoryTest {
             vin = "JTDBR32E720000007",
             fuelType = FuelType.HYBRID,
             primaryOdometerKm = 42_500,
+            vehicleType = VehicleType.ELECTRIC_BICYCLE,
         )
 
         assertEquals(
@@ -35,6 +37,7 @@ class VehicleRepositoryTest {
                 vin = "JTDBR32E720000007",
                 fuelType = FuelType.HYBRID,
                 primaryOdometerKm = 42_500,
+                vehicleType = VehicleType.ELECTRIC_BICYCLE,
             ),
             entity.toDomain(),
         )

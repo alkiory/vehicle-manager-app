@@ -10,4 +10,5 @@ data class Vehicle(
     val vin: String?,
     val fuelType: FuelType,
     val primaryOdometerKm: Long,
+    val vehicleType: VehicleType = VehicleType.CAR,
 )

@@ -76,3 +76,13 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
     }
 }
+
+/**
+ * Migration from version 5 to 6: add the canonical vehicle type. Existing rows
+ * keep their data and receive the `CAR` default instead of being reset.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE vehicles ADD COLUMN vehicleType TEXT NOT NULL DEFAULT 'CAR'")
+    }
+}

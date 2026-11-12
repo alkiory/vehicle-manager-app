@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.feature.fuel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vehiclemanager.core.domain.ActiveVehicleRepository
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
@@ -31,12 +33,16 @@ class AddFuelViewModel @Inject constructor(
     private val vehicleRepository: VehicleRepository,
     private val formDirtyStateHolder: FormDirtyStateHolder,
     private val navigationGuard: NavigationGuard,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val recordId = savedStateHandle.get<Long>(RECORD_ID_KEY) ?: 0L
     private val dirtyToken = Any()
     private val formStateHolder = FormStateHolder(FuelFormData())
     private var onCloseFormListener: (() -> Unit)? = null
 
-    private val _uiState = MutableStateFlow(AddFuelUiState())
+    private val _uiState = MutableStateFlow(
+        AddFuelUiState(isEditing = recordId != 0L, recordId = recordId),
+    )
     val uiState: StateFlow<AddFuelUiState> = _uiState.asStateFlow()
 
     private val guardHandler = object : FormGuardHandler {
@@ -55,45 +61,9 @@ class AddFuelViewModel @Inject constructor(
         }
     }
 
-    private val activeVehicleRecords = activeVehicleRepository.activeVehicle
-        .flatMapLatest { vehicle ->
-            vehicle?.let { fuelRecordRepository.observeFuelRecords(it.id) }
-                ?: flowOf(emptyList())
-        }
-
     init {
         navigationGuard.registerGuard(guardHandler)
-        viewModelScope.launch {
-            combine(
-                activeVehicleRepository.activeVehicle,
-                activeVehicleRecords,
-            ) { vehicle, records -> vehicle to records }
-                .collect { (vehicle, records) ->
-                    val previousOdometer = vehicle?.let { activeVehicle ->
-                        maxOf(
-                            activeVehicle.primaryOdometerKm,
-                            records.maxOfOrNull(FuelRecord::odometerKm) ?: 0L,
-                        )
-                    }
-                    _uiState.update { state ->
-                        val shouldPrefillOdometer = !state.odometerManuallyEdited
-                        var form = state.form
-                        if (shouldPrefillOdometer && previousOdometer != null) {
-                            form = form.copy(odometerKm = previousOdometer.toString())
-                            formStateHolder.setInitial(form, updateCurrent = true)
-                            formDirtyStateHolder.setDirty(dirtyToken, false)
-                        }
-                        state.copy(
-                            isLoading = false,
-                            activeVehicle = vehicle,
-                            previousOdometerKm = previousOdometer,
-                            form = form,
-                            noActiveVehicle = vehicle == null,
-                            isDirty = formStateHolder.isDirty,
-                        )
-                    }
-                }
-        }
+        if (recordId != 0L) loadRecord(recordId) else startCreateMode()
     }
 
     fun setOnCloseFormListener(listener: (() -> Unit)?) {
@@ -126,6 +96,8 @@ class AddFuelViewModel @Inject constructor(
         onFailure: (() -> Unit)? = null,
     ) {
         val state = _uiState.value
+        if (state.isSaving || state.saveCompleted) return
+
         val errors = state.form.validate(state.previousOdometerKm)
         if (state.activeVehicle == null) {
             _uiState.update { it.copy(noActiveVehicle = true, saveError = "no_active_vehicle") }
@@ -155,6 +127,7 @@ class AddFuelViewModel @Inject constructor(
         }
 
         val record = FuelRecord(
+            id = if (state.isEditing) state.recordId else 0L,
             vehicleId = state.activeVehicle.id,
             timestampMs = state.form.timestampMs,
             odometerKm = state.form.odometerKm.toLong(),
@@ -170,7 +143,11 @@ class AddFuelViewModel @Inject constructor(
         _uiState.update { it.copy(isSaving = true, saveError = null) }
         viewModelScope.launch {
             runCatching {
-                fuelRecordRepository.insertFuelRecord(record)
+                if (record.id == 0L) {
+                    fuelRecordRepository.insertFuelRecord(record)
+                } else {
+                    fuelRecordRepository.updateFuelRecord(record)
+                }
                 if (record.odometerKm > activeVehicle.primaryOdometerKm) {
                     vehicleRepository.updateVehicle(
                         activeVehicle.copy(primaryOdometerKm = record.odometerKm),
@@ -216,6 +193,83 @@ class AddFuelViewModel @Inject constructor(
         super.onCleared()
     }
 
+    private fun startCreateMode() {
+        val activeVehicleRecords = activeVehicleRepository.activeVehicle
+            .flatMapLatest { vehicle ->
+                vehicle?.let { fuelRecordRepository.observeFuelRecords(it.id) }
+                    ?: flowOf(emptyList())
+            }
+
+        viewModelScope.launch {
+            combine(
+                activeVehicleRepository.activeVehicle,
+                activeVehicleRecords,
+            ) { vehicle, records -> vehicle to records }
+                .collect { (vehicle, records) ->
+                    val previousOdometer = vehicle?.let { activeVehicle ->
+                        maxOf(
+                            activeVehicle.primaryOdometerKm,
+                            records.maxOfOrNull(FuelRecord::odometerKm) ?: 0L,
+                        )
+                    }
+                    _uiState.update { state ->
+                        val shouldPrefillOdometer = !state.odometerManuallyEdited
+                        var form = state.form
+                        if (shouldPrefillOdometer && previousOdometer != null) {
+                            form = form.copy(odometerKm = previousOdometer.toString())
+                            formStateHolder.setInitial(form, updateCurrent = true)
+                            formDirtyStateHolder.setDirty(dirtyToken, false)
+                        }
+                        state.copy(
+                            isLoading = false,
+                            activeVehicle = vehicle,
+                            previousOdometerKm = previousOdometer,
+                            form = form,
+                            noActiveVehicle = vehicle == null,
+                            isDirty = formStateHolder.isDirty,
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun loadRecord(id: Long) {
+        viewModelScope.launch {
+            val record = fuelRecordRepository.getFuelRecord(id)
+            if (record == null) {
+                _uiState.update { it.copy(isLoading = false, loadError = "record_not_found") }
+                return@launch
+            }
+
+            val vehicle = vehicleRepository.getVehicle(record.vehicleId)
+            if (vehicle == null) {
+                _uiState.update { it.copy(isLoading = false, loadError = "vehicle_not_found") }
+                return@launch
+            }
+
+            val records = fuelRecordRepository.observeFuelRecords(record.vehicleId).first()
+            val previousOdometer = records
+                .filter { other -> other.id != record.id && other.timestampMs <= record.timestampMs }
+                .maxOfOrNull(FuelRecord::odometerKm)
+
+            val initialForm = record.toFormData()
+            formStateHolder.setInitial(initialForm, updateCurrent = true)
+            formDirtyStateHolder.setDirty(dirtyToken, false)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isEditing = true,
+                    recordId = record.id,
+                    activeVehicle = vehicle,
+                    previousOdometerKm = previousOdometer,
+                    form = initialForm,
+                    noActiveVehicle = false,
+                    isDirty = false,
+                )
+            }
+        }
+    }
+
     private fun updateForm(transform: FuelFormData.() -> FuelFormData) {
         val updated = formStateHolder.currentValue.transform()
         formStateHolder.update(updated)
@@ -232,6 +286,42 @@ class AddFuelViewModel @Inject constructor(
     }
 
     private fun updateFuelAmounts(lastEditedField: FuelAmountField, value: String) {
+        val state = _uiState.value
+        if (state.isEditing) {
+            val liters = if (lastEditedField == FuelAmountField.LITERS) value else state.form.liters
+            val pricePerLiter = if (lastEditedField == FuelAmountField.PRICE_PER_LITER) value else state.form.pricePerLiter
+            val totalCost = if (lastEditedField == FuelAmountField.TOTAL_COST) {
+                value
+            } else {
+                computeTotalCostFromParts(liters, pricePerLiter)?.toUserText().orEmpty()
+            }
+            val form = state.form.copy(
+                liters = liters,
+                pricePerLiter = pricePerLiter,
+                totalCost = totalCost,
+                autoFilledField = if (lastEditedField == FuelAmountField.TOTAL_COST) {
+                    null
+                } else if (totalCost.isNotEmpty()) {
+                    FuelAmountField.TOTAL_COST
+                } else {
+                    null
+                },
+            )
+            formStateHolder.update(form)
+            val isDirty = formStateHolder.isDirty
+            formDirtyStateHolder.setDirty(dirtyToken, isDirty)
+            _uiState.update {
+                it.copy(
+                    form = form,
+                    fuelAmountsEdited = it.fuelAmountsEdited + lastEditedField,
+                    isDirty = isDirty,
+                    errors = FuelValidationErrors(),
+                    saveError = null,
+                )
+            }
+            return
+        }
+
         _uiState.update { state ->
             val edited = state.fuelAmountsEdited + lastEditedField
             val liters = if (lastEditedField == FuelAmountField.LITERS) value else state.form.liters
@@ -289,10 +379,27 @@ class AddFuelViewModel @Inject constructor(
             )
         }
     }
+
+    private fun FuelRecord.toFormData() = FuelFormData(
+        timestampMs = timestampMs,
+        odometerKm = odometerKm.toString(),
+        liters = litersX100ToInputText(litersX100),
+        pricePerLiter = centsToInputText(pricePerLiterCents),
+        totalCost = centsToInputText(totalCostCents),
+        isFullTank = isFullTank,
+        stationName = stationName.orEmpty(),
+        notes = notes.orEmpty(),
+    )
+
+    private companion object {
+        const val RECORD_ID_KEY = "fuelRecordId"
+    }
 }
 
 data class AddFuelUiState(
     val isLoading: Boolean = true,
+    val isEditing: Boolean = false,
+    val recordId: Long = 0L,
     val activeVehicle: Vehicle? = null,
     val previousOdometerKm: Long? = null,
     val form: FuelFormData = FuelFormData(),
@@ -301,6 +408,7 @@ data class AddFuelUiState(
     val noActiveVehicle: Boolean = false,
     val isSaving: Boolean = false,
     val saveCompleted: Boolean = false,
+    val loadError: String? = null,
     val saveError: String? = null,
     /** Amount fields the user has typed into during this session. */
     val fuelAmountsEdited: Set<FuelAmountField> = emptySet(),

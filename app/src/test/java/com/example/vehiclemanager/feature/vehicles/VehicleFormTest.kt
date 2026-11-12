@@ -1,6 +1,7 @@
 package com.example.vehiclemanager.feature.vehicles
 
 import com.example.vehiclemanager.core.domain.FuelType
+import com.example.vehiclemanager.core.domain.VehicleType
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -15,6 +16,7 @@ class VehicleFormTest {
         licensePlate = "ABC-123",
         vin = "JTDBR32E720000007",
         fuelType = FuelType.HYBRID,
+        vehicleType = VehicleType.ELECTRIC_BICYCLE,
         primaryOdometerKm = "42500",
     )
 
@@ -26,6 +28,13 @@ class VehicleFormTest {
         assertNull(errors.name)
         assertNull(errors.year)
         assertNull(errors.odometer)
+    }
+
+    @Test
+    fun vehicleTypeDefaultsToCarAndKeepsElectricBicycleSelection() {
+        org.junit.Assert.assertEquals(VehicleType.CAR, VehicleFormData().vehicleType)
+        org.junit.Assert.assertEquals(VehicleType.ELECTRIC_BICYCLE, validForm.vehicleType)
+        assertFalse(validForm.validate(currentYear = 2026).hasErrors)
     }
 
     @Test

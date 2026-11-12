@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -31,11 +32,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vehiclemanager.core.domain.FuelType
+import com.example.vehiclemanager.core.domain.VehicleType
 import com.example.vehiclemanager.core.ui.components.UnsavedChangesGuard
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerPrimaryButton
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
 import com.example.vehiclemanager.core.ui.components.rememberUnsavedChangesState
+import com.example.vehiclemanager.core.ui.theme.AppIcons
 
 @Composable
 fun AddEditVehicleScreen(
@@ -86,6 +89,7 @@ fun AddEditVehicleScreen(
                 onYearChanged = viewModel::updateYear,
                 onLicensePlateChanged = viewModel::updateLicensePlate,
                 onVinChanged = viewModel::updateVin,
+                onVehicleTypeChanged = viewModel::updateVehicleType,
                 onFuelTypeChanged = viewModel::updateFuelType,
                 onOdometerChanged = viewModel::updateOdometer,
                 onSave = viewModel::save,
@@ -134,12 +138,14 @@ private fun VehicleFormContent(
     onYearChanged: (String) -> Unit,
     onLicensePlateChanged: (String) -> Unit,
     onVinChanged: (String) -> Unit,
+    onVehicleTypeChanged: (VehicleType) -> Unit,
     onFuelTypeChanged: (FuelType) -> Unit,
     onOdometerChanged: (String) -> Unit,
     onSave: () -> Unit,
 ) {
     val form = uiState.form
     val errors = uiState.errors
+    var vehicleTypeMenuExpanded by remember { mutableStateOf(false) }
     var fuelMenuExpanded by remember { mutableStateOf(false) }
 
     Column(
@@ -190,6 +196,44 @@ private fun VehicleFormContent(
             onValueChange = onVinChanged,
             label = "VIN (opcional)",
         )
+
+        ExposedDropdownMenuBox(
+            expanded = vehicleTypeMenuExpanded,
+            onExpandedChange = { vehicleTypeMenuExpanded = !vehicleTypeMenuExpanded },
+        ) {
+            OutlinedTextField(
+                value = form.vehicleType.displayName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(text = "Tipo de vehículo") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = vehicleTypeMenuExpanded)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            )
+            ExposedDropdownMenu(
+                expanded = vehicleTypeMenuExpanded,
+                onDismissRequest = { vehicleTypeMenuExpanded = false },
+            ) {
+                VehicleType.entries.forEach { vehicleType ->
+                    DropdownMenuItem(
+                        text = { Text(text = vehicleType.displayName) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = AppIcons.forVehicleType(vehicleType),
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            onVehicleTypeChanged(vehicleType)
+                            vehicleTypeMenuExpanded = false
+                        },
+                    )
+                }
+            }
+        }
 
         ExposedDropdownMenuBox(
             expanded = fuelMenuExpanded,

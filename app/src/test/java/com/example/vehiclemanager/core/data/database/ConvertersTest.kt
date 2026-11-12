@@ -1,6 +1,7 @@
 package com.example.vehiclemanager.core.data.database
 
 import com.example.vehiclemanager.core.domain.FuelType
+import com.example.vehiclemanager.core.domain.VehicleType
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -33,5 +34,17 @@ class ConvertersTest {
     fun nullableFuelTypeValuesRemainNull() {
         assertNull(converters.fuelTypeToName(null))
         assertNull(converters.nameToFuelType(null))
+    }
+
+    @Test
+    fun vehicleTypeRoundTripUsesStableNameAndFallsBackForUnknownStorage() {
+        assertEquals("ELECTRIC_BICYCLE", converters.vehicleTypeToName(VehicleType.ELECTRIC_BICYCLE))
+        assertEquals(
+            VehicleType.ELECTRIC_BICYCLE,
+            converters.nameToVehicleType("ELECTRIC_BICYCLE"),
+        )
+        assertEquals(VehicleType.CAR, converters.nameToVehicleType("SPACESHIP"))
+        assertNull(converters.vehicleTypeToName(null))
+        assertNull(converters.nameToVehicleType(null))
     }
 }

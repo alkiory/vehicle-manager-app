@@ -27,6 +27,7 @@ class FuelHistoryViewModel @Inject constructor(
     private val fuelRecordRepository: FuelRecordRepository,
 ) : ViewModel() {
     private val pendingDelete = MutableStateFlow<FuelRecord?>(null)
+    private val isDeleting = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<FuelHistoryUiState> = activeVehicleRepository.activeVehicle
@@ -44,6 +45,7 @@ class FuelHistoryViewModel @Inject constructor(
                 isLoading = false,
             )
         }
+        .combine(isDeleting) { state, deleting -> state.copy(isDeleting = deleting) }
         .combine(error) { state, deleteError -> state.copy(error = deleteError) }
         .stateIn(
             scope = viewModelScope,
@@ -61,14 +63,21 @@ class FuelHistoryViewModel @Inject constructor(
 
     fun confirmDelete() {
         val record = pendingDelete.value ?: return
-        pendingDelete.value = null
+        if (isDeleting.value) return
+        isDeleting.value = true
+        error.value = null
         viewModelScope.launch {
             runCatching { fuelRecordRepository.deleteFuelRecord(record) }
+                .onSuccess {
+                    pendingDelete.value = null
+                }
                 .onFailure { throwable ->
+                    pendingDelete.value = null
                     // The next history refresh remains the source of truth. Keep
                     // the error visible without reintroducing the deleted item.
                     error.value = throwable.message ?: "delete_failed"
                 }
+            isDeleting.value = false
         }
     }
 
@@ -82,5 +91,6 @@ data class FuelHistoryUiState(
     val activeVehicle: Vehicle? = null,
     val records: List<FuelRecord> = emptyList(),
     val recordPendingDeletion: FuelRecord? = null,
+    val isDeleting: Boolean = false,
     val error: String? = null,
 )

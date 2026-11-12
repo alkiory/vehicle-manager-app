@@ -95,6 +95,8 @@ class AddMaintenanceViewModel @Inject constructor(
         onFailure: (() -> Unit)? = null,
     ) {
         val state = _uiState.value
+        if (state.isSaving || state.saveCompleted) return
+
         val errors = state.form.validate(state.previousOdometerKm)
         val costCents = maintenanceCostToCents(state.form.cost)
         val odometerKm = state.form.odometerKm.toLongOrNull()
@@ -204,11 +206,12 @@ class AddMaintenanceViewModel @Inject constructor(
     private fun loadRecord(id: Long) {
         viewModelScope.launch {
             val record = maintenanceRecordRepository.getMaintenanceRecord(id)
-            val vehicle = activeVehicleRepository.activeVehicle.value
             if (record == null) {
                 _uiState.update { it.copy(isLoading = false, loadError = "record_not_found") }
                 return@launch
             }
+            // Keep the record's own vehicle even if another vehicle is active now.
+            val vehicle = vehicleRepository.getVehicle(record.vehicleId)
             val initialForm = record.toFormData()
             formStateHolder.setInitial(initialForm, updateCurrent = true)
             formDirtyStateHolder.setDirty(dirtyToken, false)

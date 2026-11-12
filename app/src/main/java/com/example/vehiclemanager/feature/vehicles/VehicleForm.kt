@@ -1,6 +1,7 @@
 package com.example.vehiclemanager.feature.vehicles
 
 import com.example.vehiclemanager.core.domain.FuelType
+import com.example.vehiclemanager.core.domain.VehicleType
 
 /** Validation messages are kept as stable keys so the UI can localize them later. */
 data class VehicleValidationErrors(
@@ -23,6 +24,7 @@ data class VehicleFormData(
     val licensePlate: String = "",
     val vin: String = "",
     val fuelType: FuelType = FuelType.PETROL,
+    val vehicleType: VehicleType = VehicleType.CAR,
     val primaryOdometerKm: String = "",
 )
 

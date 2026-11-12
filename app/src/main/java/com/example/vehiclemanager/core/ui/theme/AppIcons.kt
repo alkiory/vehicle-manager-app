@@ -9,10 +9,16 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.AirportShuttle
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.ElectricBike
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Motorcycle
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.vehiclemanager.core.domain.VehicleType
 
 /**
  * Application-wide icon mappings.
@@ -54,6 +60,16 @@ object AppIcons {
     val IconWrench = Icons.Filled.Build
     val IconTrending = Icons.Filled.TrendingUp
     val IconVehicleBadge = Icons.Filled.DirectionsCar
+
+    /** Canonical vehicle type to Material icon mapping, matching the web catalog. */
+    fun forVehicleType(vehicleType: VehicleType): ImageVector = when (vehicleType) {
+        VehicleType.CAR -> Icons.Filled.DirectionsCar
+        VehicleType.MOTORCYCLE -> Icons.Filled.Motorcycle
+        VehicleType.TRUCK -> Icons.Filled.LocalShipping
+        VehicleType.VAN -> Icons.Filled.AirportShuttle
+        VehicleType.BUS -> Icons.Filled.DirectionsBus
+        VehicleType.ELECTRIC_BICYCLE -> Icons.Filled.ElectricBike
+    }
 
     /**
      * Primary tint color used for single-tone icons.

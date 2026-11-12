@@ -50,6 +50,7 @@ import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.domain.NextRefuelEstimate
 import com.example.vehiclemanager.core.domain.TimelineEvent
 import com.example.vehiclemanager.core.domain.UpcomingService
+import com.example.vehiclemanager.core.domain.VehicleType
 import com.example.vehiclemanager.core.ui.Formatters
 import com.example.vehiclemanager.core.ui.components.VehicleManagerAppBar
 import com.example.vehiclemanager.core.ui.components.VehicleManagerScreen
@@ -66,6 +67,8 @@ fun DashboardScreen(
     onAddFuel: () -> Unit = {},
     onAddMaintenance: () -> Unit = {},
     onViewAll: () -> Unit = {},
+    onOpenFuel: (Long) -> Unit = {},
+    onOpenMaintenance: (Long) -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -109,6 +112,8 @@ fun DashboardScreen(
         DashboardContent(
             uiState = uiState,
             onViewAll = onViewAll,
+            onOpenFuel = onOpenFuel,
+            onOpenMaintenance = onOpenMaintenance,
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -118,6 +123,8 @@ fun DashboardScreen(
 private fun DashboardContent(
     uiState: DashboardUiState,
     onViewAll: () -> Unit,
+    onOpenFuel: (Long) -> Unit,
+    onOpenMaintenance: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val vehicle = uiState.activeVehicle
@@ -157,7 +164,13 @@ private fun DashboardContent(
         state = rememberLazyListState(),
     ) {
         item { GreetingHeader() }
-        item { VehicleHeroCard(vehicleName = vehicle.name, odometerKm = vehicle.primaryOdometerKm) }
+        item {
+            VehicleHeroCard(
+                vehicleName = vehicle.name,
+                vehicleType = vehicle.vehicleType,
+                odometerKm = vehicle.primaryOdometerKm,
+            )
+        }
         item { NextRefuelEstimateCard(estimate = uiState.nextRefuelEstimate) }
         item {
             QuickSummarySection(
@@ -175,6 +188,8 @@ private fun DashboardContent(
             item {
                 TimelineSection(
                     events = uiState.timelineEvents,
+                    onOpenFuel = onOpenFuel,
+                    onOpenMaintenance = onOpenMaintenance,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -216,17 +231,19 @@ private fun GreetingHeader() {
                 .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = AppIcons.NavHome,
-                contentDescription = "Perfil",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            Image(
+                painter = painterResource(id = R.drawable.vehiclemanagericon),
+                contentDescription = "Vehicle Manager",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
             )
         }
     }
 }
 
 @Composable
-private fun VehicleHeroCard(vehicleName: String, odometerKm: Long) {
+private fun VehicleHeroCard(vehicleName: String, vehicleType: VehicleType, odometerKm: Long) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -266,14 +283,14 @@ private fun VehicleHeroCard(vehicleName: String, odometerKm: Long) {
                     modifier = Modifier.padding(top = 12.dp),
                 )
                 Text(
-                    text = "Vehículo principal · $odometerKm km",
+                    text = "Vehículo principal · ${vehicleType.displayName} · $odometerKm km",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.85f),
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
             Icon(
-                imageVector = AppIcons.IconVehicleBadge,
+                imageVector = AppIcons.forVehicleType(vehicleType),
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(40.dp),
@@ -572,6 +589,8 @@ private fun DashboardActionHub(
 @Composable
 private fun TimelineSection(
     events: List<TimelineEvent>,
+    onOpenFuel: (Long) -> Unit,
+    onOpenMaintenance: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -593,6 +612,8 @@ private fun TimelineSection(
                     event = event,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
+                    onOpenFuel = onOpenFuel,
+                    onOpenMaintenance = onOpenMaintenance,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (index < events.size - 1) {
@@ -608,6 +629,8 @@ private fun TimelineItem(
     event: TimelineEvent,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    onOpenFuel: (Long) -> Unit,
+    onOpenMaintenance: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val timestampMillis = event.timestampMs
@@ -629,7 +652,12 @@ private fun TimelineItem(
     }
 
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable {
+            when (event) {
+                is TimelineEvent.FuelRecordEvent -> onOpenFuel(event.record.id)
+                is TimelineEvent.MaintenanceRecordEvent -> onOpenMaintenance(event.record.id)
+            }
+        },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),

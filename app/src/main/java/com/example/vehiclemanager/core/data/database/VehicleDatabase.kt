@@ -30,7 +30,7 @@ import com.example.vehiclemanager.core.data.vehicle.VehicleEntity
         NotificationScheduleEntity::class,
         NotificationPreferencesEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

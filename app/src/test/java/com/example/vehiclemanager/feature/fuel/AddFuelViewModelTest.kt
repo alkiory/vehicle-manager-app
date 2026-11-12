@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.feature.fuel
 
+import androidx.lifecycle.SavedStateHandle
 import com.example.vehiclemanager.core.domain.ActiveVehicleRepository
 import com.example.vehiclemanager.core.domain.FuelRecord
 import com.example.vehiclemanager.core.domain.FuelRecordRepository
@@ -17,6 +18,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -152,14 +154,69 @@ class AddFuelViewModelTest {
         assertEquals("", viewModel.uiState.value.form.liters)
     }
 
+    @Test
+    fun repeatedSaveCreatesOnlyOneRecord() = runTest {
+        val recordRepository = FakeFuelRecordRepository()
+        val viewModel = createViewModel(recordRepository = recordRepository)
+
+        viewModel.updateOdometer("10000")
+        viewModel.updateLiters("45.25")
+        viewModel.updatePricePerLiter("1.79")
+        viewModel.save()
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(1, recordRepository.insertCalls)
+    }
+
+    @Test
+    fun editingUpdatesTheSameRecordAndExcludesItsOwnOdometer() = runTest {
+        val record = FuelRecord(
+            id = 42,
+            vehicleId = 1,
+            timestampMs = 100,
+            odometerKm = 10_000,
+            litersX100 = 4_000,
+            pricePerLiterCents = 179,
+            totalCostCents = 7_160,
+            isFullTank = true,
+            stationName = "Station",
+            notes = null,
+        )
+        val earlier = record.copy(id = 41, timestampMs = 50, odometerKm = 9_000)
+        val later = record.copy(id = 43, timestampMs = 200, odometerKm = 20_000)
+        val recordRepository = FakeFuelRecordRepository(listOf(earlier, record, later))
+        val viewModel = createViewModel(
+            recordRepository = recordRepository,
+            savedStateHandle = SavedStateHandle(mapOf("fuelRecordId" to 42L)),
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isEditing)
+        assertEquals("40.00", viewModel.uiState.value.form.liters)
+
+        viewModel.updateOdometer("9500")
+        viewModel.updateLiters("40.00")
+        viewModel.updatePricePerLiter("2.00")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertNull(recordRepository.inserted)
+        assertEquals(42L, recordRepository.updated?.id)
+        assertEquals(9_500L, recordRepository.updated?.odometerKm)
+        assertEquals(1, recordRepository.updateCalls)
+    }
+
     private fun createViewModel(
         recordRepository: FakeFuelRecordRepository = FakeFuelRecordRepository(),
+        savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("fuelRecordId" to null)),
     ): AddFuelViewModel = AddFuelViewModel(
         activeVehicleRepository = FakeActiveVehicleRepository(vehicle()),
         fuelRecordRepository = recordRepository,
-        vehicleRepository = FakeVehicleRepository(),
+        vehicleRepository = FakeVehicleRepository(vehicle()),
         formDirtyStateHolder = dirtyStateHolder,
         navigationGuard = navigationGuard,
+        savedStateHandle = savedStateHandle,
     )
 
     private fun vehicle() = Vehicle(
@@ -182,25 +239,44 @@ class AddFuelViewModelTest {
         override suspend fun clearActiveVehicle() = Unit
     }
 
-    private class FakeFuelRecordRepository : FuelRecordRepository {
+    private class FakeFuelRecordRepository(
+        initial: List<FuelRecord> = emptyList(),
+    ) : FuelRecordRepository {
+        private val records = MutableStateFlow(initial)
         var inserted: FuelRecord? = null
-        override fun observeFuelRecords(vehicleId: Long): Flow<List<FuelRecord>> =
-            MutableStateFlow(emptyList())
-        override fun observeRecentPrices(): Flow<List<FuelRecord>> =
-            MutableStateFlow(emptyList())
+        var updated: FuelRecord? = null
+        var insertCalls = 0
+        var updateCalls = 0
 
-        override suspend fun getFuelRecord(id: Long): FuelRecord? = null
+        override fun observeFuelRecords(vehicleId: Long): Flow<List<FuelRecord>> = records
+        override fun observeRecentPrices(): Flow<List<FuelRecord>> = records
+
+        override suspend fun getFuelRecord(id: Long): FuelRecord? =
+            records.value.firstOrNull { it.id == id }
+
         override suspend fun insertFuelRecord(record: FuelRecord): Long {
+            insertCalls++
             inserted = record
+            records.value = records.value + record.copy(id = 1)
             return 1
         }
-        override suspend fun updateFuelRecord(record: FuelRecord) = Unit
-        override suspend fun deleteFuelRecord(record: FuelRecord) = Unit
+
+        override suspend fun updateFuelRecord(record: FuelRecord) {
+            updateCalls++
+            updated = record
+            records.value = records.value.map { if (it.id == record.id) record else it }
+        }
+
+        override suspend fun deleteFuelRecord(record: FuelRecord) {
+            records.value = records.value.filterNot { it.id == record.id }
+        }
     }
 
-    private class FakeVehicleRepository : VehicleRepository {
+    private class FakeVehicleRepository(
+        private val vehicle: Vehicle? = null,
+    ) : VehicleRepository {
         override val vehicles: Flow<List<Vehicle>> = MutableStateFlow(emptyList())
-        override suspend fun getVehicle(id: Long): Vehicle? = null
+        override suspend fun getVehicle(id: Long): Vehicle? = vehicle
         override suspend fun insertVehicle(vehicle: Vehicle): Long = 1
         override suspend fun updateVehicle(vehicle: Vehicle) = Unit
         override suspend fun deleteVehicle(vehicle: Vehicle) = Unit

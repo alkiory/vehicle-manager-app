@@ -8,6 +8,7 @@ import com.example.vehiclemanager.core.ui.navigation.AddEditVehicleRoute
 import com.example.vehiclemanager.core.domain.FuelType
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
+import com.example.vehiclemanager.core.domain.VehicleType
 import com.example.vehiclemanager.core.ui.navigation.FormDirtyStateHolder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -60,6 +61,8 @@ class AddEditVehicleViewModel @Inject constructor(
     fun updateVin(value: String) = updateForm { copy(vin = value) }
 
     fun updateFuelType(value: FuelType) = updateForm { copy(fuelType = value) }
+
+    fun updateVehicleType(value: VehicleType) = updateForm { copy(vehicleType = value) }
 
     fun updateOdometer(value: String) = updateForm { copy(primaryOdometerKm = value) }
 
@@ -148,6 +151,7 @@ private fun VehicleFormData.toVehicle(id: Long): Vehicle = Vehicle(
     licensePlate = licensePlate.trim(),
     vin = vin.trim().ifEmpty { null },
     fuelType = fuelType,
+    vehicleType = vehicleType,
     primaryOdometerKm = primaryOdometerKm.toLong(),
 )
 
@@ -159,5 +163,6 @@ private fun Vehicle.toFormData(): VehicleFormData = VehicleFormData(
     licensePlate = licensePlate,
     vin = vin.orEmpty(),
     fuelType = fuelType,
+    vehicleType = VehicleType.normalize(vehicleType.name),
     primaryOdometerKm = primaryOdometerKm.toString(),
 )

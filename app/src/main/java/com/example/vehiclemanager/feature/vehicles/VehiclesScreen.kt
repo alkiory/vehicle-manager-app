@@ -214,7 +214,7 @@ private fun VehicleRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = AppIcons.IconVehicleBadge,
+                        imageVector = AppIcons.forVehicleType(vehicle.vehicleType),
                         contentDescription = null,
                         tint = if (isActive) Color.White else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp),
@@ -232,7 +232,7 @@ private fun VehicleRow(
                         color = if (isActive) Color.White else MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "${vehicle.make} ${vehicle.model} · ${vehicle.primaryOdometerKm} km",
+                        text = "${vehicle.vehicleType.displayName} · ${vehicle.make} ${vehicle.model} · ${vehicle.primaryOdometerKm} km",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isActive) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),

@@ -78,7 +78,7 @@ fun AddFuelScreen(
     VehicleManagerScreen(
         topBar = {
             VehicleManagerAppBar(
-                title = "Nuevo repostaje",
+                title = if (uiState.isEditing) "Editar repostaje" else "Nuevo repostaje",
                 actions = {
                     TextButton(onClick = {
                         if (uiState.isDirty) {
@@ -96,6 +96,10 @@ fun AddFuelScreen(
     ) {
         when {
             uiState.isLoading -> LoadingContent()
+            uiState.loadError != null -> NoActiveVehicleContent(
+                onNavigateBack = onNavigateBack,
+                message = "No se pudo cargar el registro de combustible.",
+            )
             uiState.noActiveVehicle -> NoActiveVehicleContent(onNavigateBack)
             else -> FuelFormContent(
                 uiState = uiState,
@@ -125,7 +129,10 @@ private fun LoadingContent() {
 }
 
 @Composable
-private fun NoActiveVehicleContent(onNavigateBack: () -> Unit) {
+private fun NoActiveVehicleContent(
+    onNavigateBack: () -> Unit,
+    message: String = "Añade un vehículo antes de registrar un repostaje.",
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -134,7 +141,7 @@ private fun NoActiveVehicleContent(onNavigateBack: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Añade un vehículo antes de registrar un repostaje.",
+            text = message,
             style = MaterialTheme.typography.bodyLarge,
         )
         TextButton(onClick = onNavigateBack) {
@@ -253,7 +260,11 @@ private fun FuelFormContent(
         }
 
         VehicleManagerPrimaryButton(
-            text = if (uiState.isSaving) "Guardando…" else "Guardar repostaje",
+            text = when {
+                uiState.isSaving -> "Guardando…"
+                uiState.isEditing -> "Guardar cambios"
+                else -> "Guardar repostaje"
+            },
             onClick = onSave,
             enabled = !uiState.isSaving,
             modifier = Modifier.fillMaxWidth(),

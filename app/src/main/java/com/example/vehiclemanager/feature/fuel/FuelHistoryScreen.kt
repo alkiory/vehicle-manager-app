@@ -20,13 +20,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -134,10 +138,52 @@ fun FuelHistoryScreen(
                     FuelRecordItem(
                         record = record,
                         onClick = { onOpenDetail(record.id) },
+                        onDelete = { viewModel.requestDelete(record) },
                     )
                 }
             }
         }
+    }
+
+    uiState.recordPendingDeletion?.let { record ->
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isDeleting) viewModel.dismissDelete() },
+            title = { Text(text = "¿Eliminar este repostaje?") },
+            text = {
+                Text(
+                    text = "Se eliminará el repostaje" +
+                        (record.stationName?.let { " de $it" } ?: "") +
+                        ". Esta acción no se puede deshacer.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmDelete,
+                    enabled = !uiState.isDeleting,
+                ) {
+                    Text(text = if (uiState.isDeleting) "Eliminando…" else "Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = viewModel::dismissDelete,
+                    enabled = !uiState.isDeleting,
+                ) {
+                    Text(text = "Cancelar")
+                }
+            },
+        )
+    }
+
+    uiState.error?.let { error ->
+        AlertDialog(
+            onDismissRequest = viewModel::consumeError,
+            title = { Text(text = "No se pudo eliminar el repostaje") },
+            text = { Text(text = error) },
+            confirmButton = {
+                TextButton(onClick = viewModel::consumeError) { Text(text = "Cerrar") }
+            },
+        )
     }
 }
 
@@ -145,6 +191,7 @@ fun FuelHistoryScreen(
 private fun FuelRecordItem(
     record: FuelRecord,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val dateFormatter = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
 
@@ -199,6 +246,16 @@ private fun FuelRecordItem(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar repostaje",
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         }

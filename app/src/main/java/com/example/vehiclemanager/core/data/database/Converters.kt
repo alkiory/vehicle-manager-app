@@ -3,6 +3,7 @@ package com.example.vehiclemanager.core.data.database
 import androidx.room.TypeConverter
 import com.example.vehiclemanager.core.domain.FuelType
 import com.example.vehiclemanager.core.domain.MaintenanceCategory
+import com.example.vehiclemanager.core.domain.VehicleType
 import java.time.Instant
 
 /**
@@ -30,4 +31,11 @@ class Converters {
 
     @TypeConverter
     fun nameToMaintenanceCategory(value: String?): MaintenanceCategory? = value?.let(MaintenanceCategory::valueOf)
+
+    @TypeConverter
+    fun vehicleTypeToName(value: VehicleType?): String? = value?.name
+
+    /** Unknown persisted values fall back to a car at the mapping boundary. */
+    @TypeConverter
+    fun nameToVehicleType(value: String?): VehicleType? = value?.let(VehicleType::normalize)
 }

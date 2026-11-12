@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.vehiclemanager.core.data.database.VehicleDatabase
 import com.example.vehiclemanager.core.domain.FuelType
+import com.example.vehiclemanager.core.domain.VehicleType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -45,6 +46,7 @@ class VehicleDaoTest {
             vin = "2HGFC2F69MH000021",
             fuelType = FuelType.PETROL,
             primaryOdometerKm = 18_250,
+            vehicleType = VehicleType.ELECTRIC_BICYCLE,
         )
 
         val id = dao.insert(vehicle)

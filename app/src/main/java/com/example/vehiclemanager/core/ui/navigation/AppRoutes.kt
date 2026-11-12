@@ -17,7 +17,9 @@ data class AddEditVehicleRoute(
 data object FuelRoute
 
 @Serializable
-data object AddFuelRoute
+data class AddFuelRoute(
+    val fuelRecordId: Long? = null,
+)
 
 @Serializable
 data class FuelDetailRoute(

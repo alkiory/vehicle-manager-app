@@ -73,15 +73,17 @@ com.example.vehiclemanager/
 
 ### Vehicle Management
 - Add and edit vehicle details (brand, model, license plate, odometer)
+- Six canonical vehicle types with icons and labels (`CAR`, `MOTORCYCLE`, `TRUCK`, `VAN`, `BUS`, `ELECTRIC_BICYCLE`)
 - View list of registered vehicles
 
 ### Fuel Tracking
-- Record fuel refuels with odometer, price per liter, quantity, and auto-calculated total cost
+- Record, edit, and delete fuel refuels with odometer, price per liter, quantity, and auto-calculated total cost
+- Confirmation is required before deletion; edits preserve the record id and vehicle
 - Automatic odometer updates propagate across all vehicle views
 
 ### Maintenance Tracking
-- Log maintenance services with associated costs and odometer readings
-- Track service history per vehicle
+- Log and edit maintenance services with associated costs and odometer readings
+- Delete services with confirmation and track history per vehicle
 
 ### Dashboard & Analytics
 - Monthly, quarterly, semi-annual, and annual summaries
@@ -89,7 +91,7 @@ com.example.vehiclemanager/
 
 ### Settings & Reminders
 - Light and dark theme support
-- Data export and import
+- Data export and import (JSON `schemaVersion: 2`, with legacy v1 imports defaulting to `CAR`)
 - Customizable reminders:
   - Fuel refill notifications (km and days in advance)
   - Tire pressure alerts
@@ -125,7 +127,7 @@ cd vehicle-manager
 ./gradlew testDebugUnitTest
 
 # Install on connected device/emulator
-./gradlew installDebugDebug
+./gradlew installDebug
 ```
 
 ### Project Configuration
