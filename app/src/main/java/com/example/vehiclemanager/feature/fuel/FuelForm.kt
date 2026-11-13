@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.feature.fuel
 
+import com.example.vehiclemanager.core.domain.parseDecimalOrNull
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -37,17 +38,21 @@ data class FuelValidationErrors(
         get() = listOf(odometer, liters, pricePerLiter, totalCost).any { it != null }
 }
 
-fun FuelFormData.validate(previousOdometerKm: Long?): FuelValidationErrors {
+fun FuelFormData.validate(
+    previousOdometerKm: Long?,
+    nextOdometerKm: Long? = null,
+): FuelValidationErrors {
     val odometer = odometerKm.toLongOrNull()
-    val liters = decimalOrNull(liters)
-    val price = decimalOrNull(pricePerLiter)
-    val total = decimalOrNull(totalCost)
+    val liters = parseDecimalOrNull(liters)
+    val price = parseDecimalOrNull(pricePerLiter)
+    val total = parseDecimalOrNull(totalCost)
 
     return FuelValidationErrors(
         odometer = when {
             odometer == null -> "invalid"
             odometer <= 0 -> "positive"
             previousOdometerKm != null && odometer < previousOdometerKm -> "lower_than_previous"
+            nextOdometerKm != null && odometer > nextOdometerKm -> "higher_than_next"
             else -> null
         },
         liters = when {
@@ -69,7 +74,7 @@ fun FuelFormData.validate(previousOdometerKm: Long?): FuelValidationErrors {
 }
 
 fun calculatePricePerLiterCents(pricePerLiter: String): Long? {
-    val priceValue = decimalOrNull(pricePerLiter) ?: return null
+    val priceValue = parseDecimalOrNull(pricePerLiter) ?: return null
     if (priceValue <= BigDecimal.ZERO) return null
 
     return priceValue
@@ -83,7 +88,7 @@ fun calculatePricePerLiterCents(pricePerLiter: String): Long? {
  * floating-point arithmetic. Both inputs are converted to exact decimals first.
  */
 fun calculateTotalCostCents(liters: String, pricePerLiter: String): Long? {
-    val litersValue = decimalOrNull(liters) ?: return null
+    val litersValue = parseDecimalOrNull(liters) ?: return null
     val priceCents = calculatePricePerLiterCents(pricePerLiter) ?: return null
     if (litersValue <= BigDecimal.ZERO) return null
 
@@ -95,7 +100,7 @@ fun calculateTotalCostCents(liters: String, pricePerLiter: String): Long? {
 
 /** Parses the user-facing total-cost text into persisted minor units. */
 fun calculateTotalCostCents(totalCost: String): Long? {
-    val totalValue = decimalOrNull(totalCost) ?: return null
+    val totalValue = parseDecimalOrNull(totalCost) ?: return null
     if (totalValue <= BigDecimal.ZERO) return null
 
     return totalValue
@@ -105,7 +110,7 @@ fun calculateTotalCostCents(totalCost: String): Long? {
 }
 
 fun litersToX100(liters: String): Int? {
-    val litersValue = decimalOrNull(liters) ?: return null
+    val litersValue = parseDecimalOrNull(liters) ?: return null
     if (litersValue <= BigDecimal.ZERO) return null
 
     return litersValue
@@ -172,8 +177,3 @@ fun litersX100ToInputText(litersX100: Int): String {
     val hundredths = (litersX100 % 100).toString().padStart(2, '0')
     return "$whole.$hundredths"
 }
-
-private fun decimalOrNull(value: String): BigDecimal? = value
-    .trim()
-    .takeIf(String::isNotEmpty)
-    ?.toBigDecimalOrNull()

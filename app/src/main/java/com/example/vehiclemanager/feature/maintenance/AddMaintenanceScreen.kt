@@ -231,7 +231,8 @@ private fun MaintenanceFormContent(
             singleLine = false,
         )
 
-        uiState.previousOdometerKm?.let { Text(text = "Odómetro actual: $it km", style = MaterialTheme.typography.bodySmall) }
+        uiState.previousOdometerKm?.let { Text(text = "Odómetro anterior: $it km", style = MaterialTheme.typography.bodySmall) }
+        uiState.nextOdometerKm?.let { Text(text = "Odómetro siguiente: $it km", style = MaterialTheme.typography.bodySmall) }
         uiState.saveError?.let { Text(text = it, color = MaterialTheme.colorScheme.error) }
         VehicleManagerPrimaryButton(
             text = if (uiState.isSaving) "Guardando…" else "Guardar servicio",
@@ -278,6 +279,7 @@ private fun MaintenanceTextField(
 private fun String.maintenanceMessage(default: String): String = when (this) {
     "positive" -> "El valor debe ser mayor que cero."
     "lower_than_previous" -> "El odómetro no puede ser menor que el del servicio anterior."
+    "higher_than_next" -> "El odómetro no puede ser mayor que el del servicio siguiente."
     "invalid" -> "Introduce un número válido."
     else -> default
 }

@@ -207,13 +207,73 @@ class AddFuelViewModelTest {
         assertEquals(1, recordRepository.updateCalls)
     }
 
+    @Test
+    fun backdatedRefuelBetweenNeighboursSavesWithoutLoweringTheVehicleOdometer() = runTest {
+        val current = vehicle().copy(primaryOdometerKm = 12_000)
+        val recordRepository = FakeFuelRecordRepository(
+            listOf(
+                fuelRecord(id = 1, timestampMs = 100, odometerKm = 9_000),
+                fuelRecord(id = 2, timestampMs = 300, odometerKm = 12_000),
+            ),
+        )
+        val vehicleRepository = FakeVehicleRepository(current)
+        val viewModel = createViewModel(
+            recordRepository = recordRepository,
+            activeVehicle = current,
+            vehicleRepository = vehicleRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateTimestamp(200)
+        assertEquals(9_000L, viewModel.uiState.value.previousOdometerKm)
+        assertEquals(12_000L, viewModel.uiState.value.nextOdometerKm)
+
+        viewModel.updateOdometer("11000")
+        viewModel.updateLiters("40")
+        viewModel.updatePricePerLiter("1.50")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(1, recordRepository.insertCalls)
+        assertEquals(11_000L, recordRepository.inserted?.odometerKm)
+        assertTrue(vehicleRepository.updated.isEmpty())
+    }
+
+    @Test
+    fun odometerAboveTheNextChronologicalRefuelIsRejected() = runTest {
+        val current = vehicle().copy(primaryOdometerKm = 12_000)
+        val recordRepository = FakeFuelRecordRepository(
+            listOf(
+                fuelRecord(id = 1, timestampMs = 100, odometerKm = 9_000),
+                fuelRecord(id = 2, timestampMs = 300, odometerKm = 12_000),
+            ),
+        )
+        val viewModel = createViewModel(
+            recordRepository = recordRepository,
+            activeVehicle = current,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateTimestamp(200)
+        viewModel.updateOdometer("13000")
+        viewModel.updateLiters("40")
+        viewModel.updatePricePerLiter("1.50")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(0, recordRepository.insertCalls)
+        assertEquals("higher_than_next", viewModel.uiState.value.errors.odometer)
+    }
+
     private fun createViewModel(
         recordRepository: FakeFuelRecordRepository = FakeFuelRecordRepository(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("fuelRecordId" to null)),
+        activeVehicle: Vehicle = vehicle(),
+        vehicleRepository: FakeVehicleRepository = FakeVehicleRepository(activeVehicle),
     ): AddFuelViewModel = AddFuelViewModel(
-        activeVehicleRepository = FakeActiveVehicleRepository(vehicle()),
+        activeVehicleRepository = FakeActiveVehicleRepository(activeVehicle),
         fuelRecordRepository = recordRepository,
-        vehicleRepository = FakeVehicleRepository(vehicle()),
+        vehicleRepository = vehicleRepository,
         formDirtyStateHolder = dirtyStateHolder,
         navigationGuard = navigationGuard,
         savedStateHandle = savedStateHandle,
@@ -275,10 +335,27 @@ class AddFuelViewModelTest {
     private class FakeVehicleRepository(
         private val vehicle: Vehicle? = null,
     ) : VehicleRepository {
+        val updated = mutableListOf<Vehicle>()
+
         override val vehicles: Flow<List<Vehicle>> = MutableStateFlow(emptyList())
         override suspend fun getVehicle(id: Long): Vehicle? = vehicle
         override suspend fun insertVehicle(vehicle: Vehicle): Long = 1
-        override suspend fun updateVehicle(vehicle: Vehicle) = Unit
+        override suspend fun updateVehicle(vehicle: Vehicle) {
+            updated += vehicle
+        }
         override suspend fun deleteVehicle(vehicle: Vehicle) = Unit
     }
+
+    private fun fuelRecord(id: Long, timestampMs: Long, odometerKm: Long) = FuelRecord(
+        id = id,
+        vehicleId = 1,
+        timestampMs = timestampMs,
+        odometerKm = odometerKm,
+        litersX100 = 4_000,
+        pricePerLiterCents = 150,
+        totalCostCents = 6_000,
+        isFullTank = true,
+        stationName = null,
+        notes = null,
+    )
 }

@@ -82,10 +82,13 @@ com.example.vehiclemanager/
 - Record, edit, and delete fuel refuels with odometer, price per liter, quantity, and auto-calculated total cost
 - Confirmation is required before deletion; edits preserve the record id and vehicle
 - Automatic odometer updates propagate across all vehicle views
+- Backdated refuels are validated against the closest earlier and later refuels, and never lower the vehicle's current odometer
+- Amount fields accept both decimal points and Spanish decimal commas (`1,475` €/L, `6,7` L)
 
 ### Maintenance Tracking
 - Log and edit maintenance services with associated costs and odometer readings
 - Delete services with confirmation and track history per vehicle
+- Backdated services use the same chronological odometer bounds and decimal comma support
 
 ### Dashboard & Analytics
 - Monthly, quarterly, semi-annual, and annual summaries

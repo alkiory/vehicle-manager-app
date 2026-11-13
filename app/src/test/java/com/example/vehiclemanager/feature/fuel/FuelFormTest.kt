@@ -28,6 +28,28 @@ class FuelFormTest {
     }
 
     @Test
+    fun odometerCannotBeHigherThanNextChronologicalRefuel() {
+        val errors = validForm.copy(odometerKm = "43001")
+            .validate(previousOdometerKm = 42_000, nextOdometerKm = 43_000)
+
+        assertEquals("higher_than_next", errors.odometer)
+    }
+
+    @Test
+    fun decimalCommasAreAcceptedInAmounts() {
+        val commaForm = validForm.copy(
+            liters = "6,7",
+            pricePerLiter = "1,475",
+            totalCost = "9,92",
+        )
+
+        assertFalse(commaForm.validate(previousOdometerKm = 42_000).hasErrors)
+        assertEquals(670, litersToX100("6,7"))
+        assertEquals(148L, calculatePricePerLiterCents("1,475"))
+        assertEquals(992L, calculateTotalCostCents("6,7", "1,475"))
+    }
+
+    @Test
     fun costAndQuantityUseIntegerMinorUnits() {
         assertEquals(4_525, litersToX100("45.25"))
         assertEquals(179L, calculatePricePerLiterCents("1.79"))

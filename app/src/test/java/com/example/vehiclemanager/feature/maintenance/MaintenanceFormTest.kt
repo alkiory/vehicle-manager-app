@@ -38,6 +38,21 @@ class MaintenanceFormTest {
     }
 
     @Test
+    fun odometerCannotBeHigherThanNextService() {
+        val errors = validForm.copy(odometerKm = "52000")
+            .validate(previousOdometerKm = 50_000, nextOdometerKm = 51_000)
+
+        assertEquals("higher_than_next", errors.odometer)
+    }
+
+    @Test
+    fun decimalCostCommaIsAccepted() {
+        assertFalse(validForm.copy(cost = "125,00").validate(previousOdometerKm = 49_000).hasErrors)
+        assertEquals(12_500L, maintenanceCostToCents("125,00"))
+        assertEquals(670L, maintenanceCostToCents("6,7"))
+    }
+
+    @Test
     fun odometerUpdateOnlyMovesForward() {
         assertEquals(50_000L, odometerAfterMaintenance(50_000, 49_000))
         assertEquals(52_000L, odometerAfterMaintenance(50_000, 52_000))

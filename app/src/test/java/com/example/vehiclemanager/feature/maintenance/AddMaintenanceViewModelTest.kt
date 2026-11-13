@@ -88,7 +88,7 @@ class AddMaintenanceViewModelTest {
             notes = null,
             performedBy = null,
         )
-        val recordRepository = FakeMaintenanceRepository(record)
+        val recordRepository = FakeMaintenanceRepository(listOf(record))
         val viewModel = AddMaintenanceViewModel(
             activeVehicleRepository = FakeActiveVehicleRepository(vehicle(10_000)),
             maintenanceRecordRepository = recordRepository,
@@ -168,6 +168,72 @@ class AddMaintenanceViewModelTest {
         assertEquals("", viewModel.uiState.value.form.title)
     }
 
+    @Test
+    fun backdatedServiceBetweenNeighboursSavesWithoutLoweringTheVehicleOdometer() = runTest {
+        val current = vehicle(12_000)
+        val updatedVehicles = mutableListOf<Vehicle>()
+        val recordRepository = FakeMaintenanceRepository(
+            listOf(
+                maintenanceRecord(id = 1, timestampMs = 100, odometerKm = 9_000),
+                maintenanceRecord(id = 2, timestampMs = 300, odometerKm = 12_000),
+            ),
+        )
+        val viewModel = AddMaintenanceViewModel(
+            activeVehicleRepository = FakeActiveVehicleRepository(current),
+            maintenanceRecordRepository = recordRepository,
+            vehicleRepository = FakeVehicleRepository(updatedVehicles),
+            formDirtyStateHolder = FormDirtyStateHolder(),
+            navigationGuard = navigationGuard,
+            savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
+        )
+        advanceUntilIdle()
+
+        viewModel.updateTimestamp(200)
+        assertEquals(9_000L, viewModel.uiState.value.previousOdometerKm)
+        assertEquals(12_000L, viewModel.uiState.value.nextOdometerKm)
+
+        viewModel.updateTitle("Backdated service")
+        viewModel.updateCost("45,50")
+        viewModel.updateOdometer("11000")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(1, recordRepository.insertCalls)
+        assertEquals(11_000L, recordRepository.inserted?.odometerKm)
+        assertEquals(4_550L, recordRepository.inserted?.costCents)
+        assertTrue(updatedVehicles.isEmpty())
+    }
+
+    @Test
+    fun odometerAboveTheNextChronologicalServiceIsRejected() = runTest {
+        val current = vehicle(12_000)
+        val recordRepository = FakeMaintenanceRepository(
+            listOf(
+                maintenanceRecord(id = 1, timestampMs = 100, odometerKm = 9_000),
+                maintenanceRecord(id = 2, timestampMs = 300, odometerKm = 12_000),
+            ),
+        )
+        val viewModel = AddMaintenanceViewModel(
+            activeVehicleRepository = FakeActiveVehicleRepository(current),
+            maintenanceRecordRepository = recordRepository,
+            vehicleRepository = FakeVehicleRepository(mutableListOf()),
+            formDirtyStateHolder = FormDirtyStateHolder(),
+            navigationGuard = navigationGuard,
+            savedStateHandle = SavedStateHandle(mapOf("recordId" to null)),
+        )
+        advanceUntilIdle()
+
+        viewModel.updateTimestamp(200)
+        viewModel.updateTitle("Too high")
+        viewModel.updateCost("45.50")
+        viewModel.updateOdometer("13000")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(0, recordRepository.insertCalls)
+        assertEquals("higher_than_next", viewModel.uiState.value.errors.odometer)
+    }
+
     private fun vehicle(odometerKm: Long) = Vehicle(
         id = 1,
         name = "Test vehicle",
@@ -187,24 +253,40 @@ class AddMaintenanceViewModelTest {
     }
 
     private class FakeMaintenanceRepository(
-        private val existingRecord: MaintenanceRecord? = null,
+        initial: List<MaintenanceRecord> = emptyList(),
     ) : MaintenanceRecordRepository {
+        private val records = MutableStateFlow(initial)
         var inserted: MaintenanceRecord? = null
         var updated: MaintenanceRecord? = null
         var insertCalls = 0
-        override fun observeMaintenanceRecords(vehicleId: Long): Flow<List<MaintenanceRecord>> = MutableStateFlow(emptyList())
+        override fun observeMaintenanceRecords(vehicleId: Long): Flow<List<MaintenanceRecord>> = records
         override suspend fun getMaintenanceRecord(id: Long): MaintenanceRecord? =
-            existingRecord?.takeIf { it.id == id }
+            records.value.firstOrNull { it.id == id }
         override suspend fun insertMaintenanceRecord(record: MaintenanceRecord): Long {
             insertCalls++
             inserted = record
+            records.value = records.value + record.copy(id = 1)
             return 1
         }
         override suspend fun updateMaintenanceRecord(record: MaintenanceRecord) {
             updated = record
+            records.value = records.value.map { if (it.id == record.id) record else it }
         }
         override suspend fun deleteMaintenanceRecord(record: MaintenanceRecord) = Unit
     }
+
+    private fun maintenanceRecord(id: Long, timestampMs: Long, odometerKm: Long) =
+        MaintenanceRecord(
+            id = id,
+            vehicleId = 1,
+            title = "Service",
+            category = MaintenanceCategory.GENERAL_INSPECTION,
+            costCents = 5_000,
+            odometerKm = odometerKm,
+            timestampMs = timestampMs,
+            notes = null,
+            performedBy = null,
+        )
 
     private class FakeVehicleRepository(
         private val updatedVehicles: MutableList<Vehicle>,

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vehiclemanager.core.domain.ActiveVehicleRepository
 import com.example.vehiclemanager.core.domain.FuelRecord
+import com.example.vehiclemanager.core.domain.chronologicalOdometerNeighbors
 import com.example.vehiclemanager.core.domain.FuelRecordRepository
 import com.example.vehiclemanager.core.domain.Vehicle
 import com.example.vehiclemanager.core.domain.VehicleRepository
@@ -39,6 +40,7 @@ class AddFuelViewModel @Inject constructor(
     private val dirtyToken = Any()
     private val formStateHolder = FormStateHolder(FuelFormData())
     private var onCloseFormListener: (() -> Unit)? = null
+    private var vehicleRecords: List<FuelRecord> = emptyList()
 
     private val _uiState = MutableStateFlow(
         AddFuelUiState(isEditing = recordId != 0L, recordId = recordId),
@@ -70,7 +72,10 @@ class AddFuelViewModel @Inject constructor(
         onCloseFormListener = listener
     }
 
-    fun updateTimestamp(value: Long) = updateForm { copy(timestampMs = value) }
+    fun updateTimestamp(value: Long) {
+        updateForm { copy(timestampMs = value) }
+        refreshOdometerNeighbors()
+    }
 
     fun updateOdometer(value: String) {
         _uiState.update { it.copy(odometerManuallyEdited = true) }
@@ -98,7 +103,15 @@ class AddFuelViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isSaving || state.saveCompleted) return
 
-        val errors = state.form.validate(state.previousOdometerKm)
+        val neighbors = chronologicalOdometerNeighbors(
+            records = vehicleRecords,
+            timestampMs = state.form.timestampMs,
+            excludeId = state.recordId.takeIf { it != 0L },
+        )
+        val errors = state.form.validate(
+            previousOdometerKm = neighbors.previousOdometerKm,
+            nextOdometerKm = neighbors.nextOdometerKm,
+        )
         if (state.activeVehicle == null) {
             _uiState.update { it.copy(noActiveVehicle = true, saveError = "no_active_vehicle") }
             onFailure?.invoke()
@@ -206,6 +219,7 @@ class AddFuelViewModel @Inject constructor(
                 activeVehicleRecords,
             ) { vehicle, records -> vehicle to records }
                 .collect { (vehicle, records) ->
+                    vehicleRecords = records
                     val previousOdometer = vehicle?.let { activeVehicle ->
                         maxOf(
                             activeVehicle.primaryOdometerKm,
@@ -220,10 +234,12 @@ class AddFuelViewModel @Inject constructor(
                             formStateHolder.setInitial(form, updateCurrent = true)
                             formDirtyStateHolder.setDirty(dirtyToken, false)
                         }
+                        val neighbors = chronologicalOdometerNeighbors(records, form.timestampMs)
                         state.copy(
                             isLoading = false,
                             activeVehicle = vehicle,
-                            previousOdometerKm = previousOdometer,
+                            previousOdometerKm = neighbors.previousOdometerKm,
+                            nextOdometerKm = neighbors.nextOdometerKm,
                             form = form,
                             noActiveVehicle = vehicle == null,
                             isDirty = formStateHolder.isDirty,
@@ -248,9 +264,12 @@ class AddFuelViewModel @Inject constructor(
             }
 
             val records = fuelRecordRepository.observeFuelRecords(record.vehicleId).first()
-            val previousOdometer = records
-                .filter { other -> other.id != record.id && other.timestampMs <= record.timestampMs }
-                .maxOfOrNull(FuelRecord::odometerKm)
+            vehicleRecords = records
+            val neighbors = chronologicalOdometerNeighbors(
+                records = records,
+                timestampMs = record.timestampMs,
+                excludeId = record.id,
+            )
 
             val initialForm = record.toFormData()
             formStateHolder.setInitial(initialForm, updateCurrent = true)
@@ -261,12 +280,28 @@ class AddFuelViewModel @Inject constructor(
                     isEditing = true,
                     recordId = record.id,
                     activeVehicle = vehicle,
-                    previousOdometerKm = previousOdometer,
+                    previousOdometerKm = neighbors.previousOdometerKm,
+                    nextOdometerKm = neighbors.nextOdometerKm,
                     form = initialForm,
                     noActiveVehicle = false,
                     isDirty = false,
                 )
             }
+        }
+    }
+
+    private fun refreshOdometerNeighbors() {
+        val state = _uiState.value
+        val neighbors = chronologicalOdometerNeighbors(
+            records = vehicleRecords,
+            timestampMs = state.form.timestampMs,
+            excludeId = state.recordId.takeIf { it != 0L },
+        )
+        _uiState.update {
+            it.copy(
+                previousOdometerKm = neighbors.previousOdometerKm,
+                nextOdometerKm = neighbors.nextOdometerKm,
+            )
         }
     }
 
@@ -402,6 +437,7 @@ data class AddFuelUiState(
     val recordId: Long = 0L,
     val activeVehicle: Vehicle? = null,
     val previousOdometerKm: Long? = null,
+    val nextOdometerKm: Long? = null,
     val form: FuelFormData = FuelFormData(),
     val errors: FuelValidationErrors = FuelValidationErrors(),
     val odometerManuallyEdited: Boolean = false,

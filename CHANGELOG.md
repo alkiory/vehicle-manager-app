@@ -11,6 +11,10 @@ y este proyecto se adhiere a [Control de Versiones Semántico](https://semver.or
 - Eliminación de vehículos desde la lista, con confirmación que detalla el historial que se eliminará en cascada (repostajes, servicios y recordatorios).
 - Ventana de deshacer de 8 segundos que restaura el vehículo y su historial con los identificadores originales.
 
+### Corregido
+- Los repostajes y servicios con fecha pasada se validan contra los registros cronológicamente anterior y siguiente, en lugar del odómetro actual del vehículo. Un registro histórico nunca reduce el odómetro actual.
+- Los campos decimales de combustible y mantenimiento aceptan coma decimal española (`1,475`, `6,7`) además del punto decimal.
+
 ## [0.3.2] - 2026-03-09
 
 ### Cambiado

@@ -250,6 +250,12 @@ private fun FuelFormContent(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+        uiState.nextOdometerKm?.let { next ->
+            Text(
+                text = "Odómetro siguiente: $next km",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
         uiState.saveError?.let { error ->
             Text(
@@ -324,6 +330,7 @@ private fun FuelTextField(
 private fun String.fuelValidationMessage(default: String): String = when (this) {
     "positive" -> "El valor debe ser mayor que cero."
     "lower_than_previous" -> "El odómetro no puede ser menor que el del repostaje anterior."
+    "higher_than_next" -> "El odómetro no puede ser mayor que el del repostaje siguiente."
     "invalid" -> "Introduce un número válido."
     else -> default
 }

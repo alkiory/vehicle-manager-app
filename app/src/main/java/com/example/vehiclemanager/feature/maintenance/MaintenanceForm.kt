@@ -1,5 +1,6 @@
 package com.example.vehiclemanager.feature.maintenance
 
+import com.example.vehiclemanager.core.domain.parseDecimalOrNull
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -24,8 +25,11 @@ data class MaintenanceValidationErrors(
         get() = listOf(title, cost, odometer).any { it != null }
 }
 
-fun MaintenanceFormData.validate(previousOdometerKm: Long?): MaintenanceValidationErrors {
-    val costValue = cost.trim().toBigDecimalOrNull()
+fun MaintenanceFormData.validate(
+    previousOdometerKm: Long?,
+    nextOdometerKm: Long? = null,
+): MaintenanceValidationErrors {
+    val costValue = parseDecimalOrNull(cost)
     val odometer = odometerKm.trim().toLongOrNull()
 
     return MaintenanceValidationErrors(
@@ -39,13 +43,14 @@ fun MaintenanceFormData.validate(previousOdometerKm: Long?): MaintenanceValidati
             odometer == null -> "invalid"
             odometer <= 0 -> "positive"
             previousOdometerKm != null && odometer < previousOdometerKm -> "lower_than_previous"
+            nextOdometerKm != null && odometer > nextOdometerKm -> "higher_than_next"
             else -> null
         },
     )
 }
 
 fun maintenanceCostToCents(cost: String): Long? {
-    val value = cost.trim().toBigDecimalOrNull() ?: return null
+    val value = parseDecimalOrNull(cost) ?: return null
     if (value < BigDecimal.ZERO) return null
     return value.movePointRight(2)
         .setScale(0, RoundingMode.HALF_UP)
